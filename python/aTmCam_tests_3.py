@@ -17,7 +17,7 @@ def main():
     
 
     # Let's grab all the observing logs for all three 3 years into a single sorted list...
-    obsLogList = sorted(glob.glob('Test201?/???????-????????/???????-????????_obs_log.txt'))
+    obsLogList = sorted(glob.glob('aTmCam_data/Test201?/???????-????????/???????-????????_obs_log.txt'))
 
     # Now load all the observing logs from the 3 years into a single pandas DataFrame...
     # (Sahar pointed me to this nifty trick from Stackoverflow:
@@ -47,7 +47,7 @@ def main():
 
     # Let's now grab all the instrumental magnitude files for all three 3 years into a single 
     #  sorted list...
-    magLogList = sorted(glob.glob('Test201?/???????-????????/???????-????????_final_data_bin2.txt'))
+    magLogList = sorted(glob.glob('aTmCam_data/Test201?/???????-????????/???????-????????_final_data_bin2.txt'))
 
     # Now load all the instrumental magnitude files from the 3 years into a single pandas DataFrame...
     # (Sahar pointed me to this nifty trick from Stackoverflow:
@@ -244,10 +244,12 @@ def main():
     # Precipitable Water Vapor (PWV)
 
     # The Suominet-processed GPSmon data are in one big CSV file, updated daily...
-    gpsdatafile = 'SuominetResults.no_whitespace.csv'
+    gpsdatafile = 'GPSmon_data/SuominetResults.csv'
 
     # Read it into a pandas DataFrame
-    gpsdf = pd.read_csv(gpsdatafile)
+    # Note, however, the separator is not just a comma, but a comma-plus-a-single-whitespace,
+    # so we need to note the separator explicitly in the pandas read_csv command...
+    gpsdf = pd.read_csv(gpsdatafile, sep=', ')
 
     # Let's make sure the DataFrame is sorted by MJD...
     gpsdf.sort_values('MJD',inplace=True)
@@ -883,6 +885,203 @@ def main():
     
     
 
+    # Now we work on dmag4-dmag3...
+    dmag = 'dmag43'
+    print dmag
+
+    df = df_orig_clean.copy()
+    df['dmag43'] = df['dmag4']-df['dmag3']
+    
+    # Create initial (and generous)  mask, ESPECIALLY FOR mag4...
+    mask = ( ( df['airmass'] < 10.0 ) & ( df['pwv'] < 8.0 ) )
+
+    # Sigma-clipping parameters...
+    nsigma = 3.0
+    niter = 3
+
+    for i in range(niter):
+
+        iiter = i + 1
+        print """   iter%d...""" % ( iiter )
+
+        # make a copy of original df, and then delete the old one...
+        df = df[mask].copy()
+        #del df
+
+        p,rms = aTmCamTestFit4(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
+        df.loc[:,'res'] = residuals4(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
+
+        stddev = df['res'].std()
+        mask = (np.abs(df.res)< nsigma*stddev)
+    
+        ax=df.plot('mjd','res', grid=True, kind='scatter')
+        #plt.plot(df.mjd,p(df.mjd),'m-')
+        fig = ax.get_figure()
+        outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
+        fig.savefig(outputFile)
+        plt.close()
+
+        ax=df.plot('airmass','res', grid=True, kind='scatter')
+        #plt.plot(df.mjd,p(df.mjd),'m-')
+        fig = ax.get_figure()
+        outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
+        fig.savefig(outputFile)
+        plt.close()
+
+        ax=df.plot('pwv','res', grid=True, kind='scatter')
+        #plt.plot(df.mjd,p(df.mjd),'m-')
+        fig = ax.get_figure()
+        outputFile = """./Temp/%sres_vs_pwv_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
+        fig.savefig(outputFile)
+        plt.close()
+
+        ax=df['res'].hist(grid=True, bins=100)
+        fig = ax.get_figure()
+        outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist_iter%d.png""" % (dmag, iiter)
+        fig.savefig(outputFile)
+        plt.close()
+
+    
+    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
+    x=df['airmass']
+    y=df['res']
+    xmin = 1.0
+    xmax = 3.25
+    ymin = -3.0*df.res.std()
+    ymax =  3.0*df.res.std()
+    #ymin = -0.1
+    #ymax = 0.1
+    #ymin = -1.0*df.res.std()
+    #ymax = df.res.std()
+    fig, axs = plt.subplots(ncols=1)
+    ax=axs
+    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+    ax.axis([xmin, xmax, ymin, ymax])
+    ax.set_title("HIP117452")
+    ax.set_xlabel("airmass")
+    ylabel="""%sres"""  % (dmag)
+    ax.set_ylabel(ylabel)
+    cb = fig.colorbar(hb, ax=ax)
+    cb.set_label('log10(N)')
+    plt.grid(True)
+    ax.grid(color='white')
+    #plt.show()
+    outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.png""" % (dmag)
+    fig.savefig(outputFile)
+    plt.close()
+    
+    
+    # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
+    x=df['airmass']
+    y=df['res']
+    z=df['pwv']
+    xmin = 1.0
+    xmax = 3.25
+    ymin = -3.0*df.res.std()
+    ymax =  3.0*df.res.std()
+    #ymin = -0.1
+    #ymax = 0.1
+    fig, axs = plt.subplots(ncols=1)
+    ax=axs
+    hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+    ax.axis([xmin, xmax, ymin, ymax])
+    ax.set_title("HIP117452")
+    ax.set_xlabel("airmass")
+    ylabel="""%sres"""  % (dmag)
+    ax.set_ylabel(ylabel)
+    cb = fig.colorbar(hb, ax=ax)
+    cb.set_label('PWV')
+    plt.grid(True)
+    ax.grid(color='white')
+    #plt.show()
+    outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.png"""% (dmag)
+    fig.savefig(outputFile)
+    plt.close()
+
+
+    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
+    x=df['mjd']
+    y=df['res']
+    xmin = df.mjd.min()
+    xmax = df.mjd.max()
+    ymin = -3.0*df.res.std()
+    ymax =  3.0*df.res.std()
+    #ymin = -0.1
+    #ymax = 0.1
+    fig, axs = plt.subplots(ncols=1)
+    ax=axs
+    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+    ax.axis([xmin, xmax, ymin, ymax])
+    ax.set_title("HIP117452")
+    ax.set_xlabel("MJD")
+    ylabel="""%sres"""  % (dmag)
+    ax.set_ylabel(ylabel)
+    cb = fig.colorbar(hb, ax=ax)
+    cb.set_label('log10(N)')
+    plt.grid(True)
+    ax.grid(color='white')
+    #plt.show()
+    outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.png"""% (dmag)
+    fig.savefig(outputFile)
+    plt.close()
+    
+    
+    # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
+    x=df['mjd']
+    y=df['res']
+    z=df['pwv']
+    xmin = df.mjd.min()
+    xmax = df.mjd.max()
+    ymin = -3.0*df.res.std()
+    ymax =  3.0*df.res.std()
+    #ymin = -0.1
+    #ymax = 0.1
+    fig, axs = plt.subplots(ncols=1)
+    ax=axs
+    hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+    ax.axis([xmin, xmax, ymin, ymax])
+    ax.set_title("HIP117452")
+    ax.set_xlabel("MJD")
+    ylabel="""%sres"""  % (dmag)
+    ax.set_ylabel(ylabel)
+    cb = fig.colorbar(hb, ax=ax)
+    cb.set_label('PWV')
+    plt.grid(True)
+    ax.grid(color='white')
+    #plt.show()
+    outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.png"""% (dmag)
+    fig.savefig(outputFile)
+    plt.close()
+
+
+    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and pwv, for HIP117452...
+    x=df['pwv']
+    y=df['res']
+    xmin = df.pwv.min()
+    xmax = df.pwv.max()
+    ymin = -3.0*df.res.std()
+    ymax =  3.0*df.res.std()
+    #ymin = -0.1
+    #ymax = 0.1
+    fig, axs = plt.subplots(ncols=1)
+    ax=axs
+    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+    ax.axis([xmin, xmax, ymin, ymax])
+    ax.set_title("HIP117452")
+    ax.set_xlabel("PWV")
+    ylabel="""%sres"""  % (dmag)
+    ax.set_ylabel(ylabel)
+    cb = fig.colorbar(hb, ax=ax)
+    cb.set_label('log10(N)')
+    plt.grid(True)
+    ax.grid(color='white')
+    #plt.show()
+    outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.png"""% (dmag)
+    fig.savefig(outputFile)
+    plt.close()
+    
+    
+
     ## Extract the series...
     #dmjd_series = df['mjd'] - df.mjd.min()
     #airmass_series = df['airmass']
@@ -1031,6 +1230,92 @@ def aTmCamTestFit4(dmjd_array, airmass_array, pwv_array, dmag_array):
     # Perform fit
 
     p,cov,infodict,mesg,ier = leastsq(residuals4, p0, args=(dmjd_array, airmass_array, pwv_array, dmag_array), maxfev=10000, full_output=1)
+
+    if ( ier>=1 and ier <=4):
+        print "Converged"
+    else:
+        print "Not converged"
+        print mesg
+
+
+    # Calculate some descriptors of the fit 
+    # (similar to the output from gnuplot 2d fits)
+
+    chisq=sum(infodict['fvec']*infodict['fvec'])
+    dof=len(dmag_array)-len(p)
+    rms=math.sqrt(chisq/dof)
+    
+    print "Converged with chi squared ",chisq
+    print "degrees of freedom, dof ", dof
+    print "RMS of residuals (i.e. sqrt(chisq/dof)) ", rms
+    print "Reduced chisq (i.e. variance of residuals) ", chisq/dof
+    print
+
+
+    # uncertainties are calculated as per gnuplot, "fixing" the result
+    # for non unit values of the reduced chisq.
+    # values at min match gnuplot
+    print "Fitted parameters at minimum, with 68% C.I.:"
+    for i,pmin in enumerate(p):
+        print "%-10s %13g +/- %13g   (%5f percent)" % (pname[i],pmin,math.sqrt(cov[i,i])*math.sqrt(chisq/dof),100.*math.sqrt(cov[i,i])*math.sqrt(chisq/dof)/abs(pmin))
+    print
+
+
+    print "Correlation matrix:"
+    # correlation matrix close to gnuplot
+    print "               ",
+    for i in range(len(pname)): print "%-10s" % (pname[i],),
+    print
+    for i in range(len(p)):
+        print "%-10s" % pname[i],
+        for j in range(i+1):
+	    print "%10f" % (cov[i,j]/math.sqrt(cov[i,i]*cov[j,j]),),
+        #endfor
+        print
+    #endfor
+
+    print
+    print
+    print
+    
+    return p, rms
+
+#--------------------------------------------------------------------------
+# Parametric function:  
+#  p is the parameter vector; 
+def fp43(p,dmjd_array,airmass_array,pwv_array):
+    #return p[0] + p[1]*dmjd_array + p[2]*np.power(airmass_array,0.6) + p[3]*pwv_array
+    return p[0] + p[1]*dmjd_array + p[2]*airmass_array + p[3]*pwv_array
+
+#--------------------------------------------------------------------------
+# Error function:
+def residuals43(p,dmjd_array,airmass_array,pwv_array,dmag_array):
+    err = (dmag_array-fp4(p,dmjd_array,airmass_array,pwv_array))
+    return err
+
+#--------------------------------------------------------------------------
+# Fitting code:
+def aTmCamTestFit43(dmjd_array, airmass_array, pwv_array, dmag_array):
+
+    # Calculate the median of dmag for use as an initial guess
+    # for the overall zeropoint offset..
+    mdn = np.median( dmag_array, None )
+
+    # Parameter names
+    pname = (['a_0', 'a_1', 'k_airmass', 'k_pwv'])
+
+    # Initial parameter values
+    p0 = [mdn, 0.0, 0.0, 0.0]
+
+    print 
+    print 'Initial parameter values:  ', p0
+
+    #print fp43(p0,dmjd_array,airmass_array,pwv_array)
+    #print residuals43(p0,dmjd_array,airmass_array,pwv_array,dmag_array)
+
+    # Perform fit
+
+    p,cov,infodict,mesg,ier = leastsq(residuals43, p0, args=(dmjd_array, airmass_array, pwv_array, dmag_array), maxfev=10000, full_output=1)
 
     if ( ier>=1 and ier <=4):
         print "Converged"
