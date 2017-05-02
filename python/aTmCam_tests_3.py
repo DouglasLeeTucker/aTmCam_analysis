@@ -687,6 +687,9 @@ def main():
         fig.savefig(outputFile)
         plt.close()
 
+        outputFile = """Temp/df_%sres.csv""" % (dmag)
+        df.to_csv(outputFile, index=False)    
+
 
         
     # Now we work on dmag4...
@@ -879,11 +882,12 @@ def main():
     plt.grid(True)
     ax.grid(color='white')
     #plt.show()
-    outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.png"""% (dmag)
+    outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.png""" % (dmag)
     fig.savefig(outputFile)
     plt.close()
-    
-    
+
+    outputFile = """Temp/df_%sres.csv""" % (dmag)
+    df.to_csv(outputFile, index=False)    
 
     # Now we work on dmag4-dmag3...
     dmag = 'dmag43'
@@ -908,8 +912,8 @@ def main():
         df = df[mask].copy()
         #del df
 
-        p,rms = aTmCamTestFit4(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
-        df.loc[:,'res'] = residuals4(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
+        p,rms = aTmCamTestFit43(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
+        df.loc[:,'res'] = residuals43(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
 
         stddev = df['res'].std()
         mask = (np.abs(df.res)< nsigma*stddev)
@@ -1054,6 +1058,34 @@ def main():
     plt.close()
 
 
+    # Let's plot a 2D histogram of airmass, binned by dmagres and mjd, for HIP117452...
+    x=df['mjd']
+    y=df['res']
+    z=df['airmass']
+    xmin = df.mjd.min()
+    xmax = df.mjd.max()
+    ymin = -3.0*df.res.std()
+    ymax =  3.0*df.res.std()
+    #ymin = -0.1
+    #ymax = 0.1
+    fig, axs = plt.subplots(ncols=1)
+    ax=axs
+    hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+    ax.axis([xmin, xmax, ymin, ymax])
+    ax.set_title("HIP117452")
+    ax.set_xlabel("MJD")
+    ylabel="""%sres"""  % (dmag)
+    ax.set_ylabel(ylabel)
+    cb = fig.colorbar(hb, ax=ax)
+    cb.set_label('PWV')
+    plt.grid(True)
+    ax.grid(color='white')
+    #plt.show()
+    outputFile = """./Temp/%sres_vs_mjd_airmass.HIP117452.png"""% (dmag)
+    fig.savefig(outputFile)
+    plt.close()
+
+
     # Let's plot a 2D histogram of log(Nobs), binned by dmagres and pwv, for HIP117452...
     x=df['pwv']
     y=df['res']
@@ -1080,7 +1112,9 @@ def main():
     fig.savefig(outputFile)
     plt.close()
     
-    
+    outputFile = """Temp/df_%sres.csv""" % (dmag)
+    df.to_csv(outputFile, index=False)    
+
 
     ## Extract the series...
     #dmjd_series = df['mjd'] - df.mjd.min()
@@ -1285,12 +1319,15 @@ def aTmCamTestFit4(dmjd_array, airmass_array, pwv_array, dmag_array):
 #  p is the parameter vector; 
 def fp43(p,dmjd_array,airmass_array,pwv_array):
     #return p[0] + p[1]*dmjd_array + p[2]*np.power(airmass_array,0.6) + p[3]*pwv_array
-    return p[0] + p[1]*dmjd_array + p[2]*airmass_array + p[3]*pwv_array
+    return p[0] + p[1]*dmjd_array + p[2]*airmass_array + p[3]*pwv_array + p[4]*pwv_array**2
+    #return p[0] + 0.00*dmjd_array + p[1]*airmass_array + p[2]*pwv_array + p[3]*pwv_array**2
+    #return p[0] + 0.00*dmjd_array + p[1]*airmass_array + 0.00*pwv_array + p[2]*pwv_array*pwv_array
+    #return p[0] + 0.00*dmjd_array + p[1]*airmass_array + 0.00*pwv_array + p[2]*np.power(pwv_array,4.0)
 
 #--------------------------------------------------------------------------
 # Error function:
 def residuals43(p,dmjd_array,airmass_array,pwv_array,dmag_array):
-    err = (dmag_array-fp4(p,dmjd_array,airmass_array,pwv_array))
+    err = (dmag_array-fp43(p,dmjd_array,airmass_array,pwv_array))
     return err
 
 #--------------------------------------------------------------------------
@@ -1302,10 +1339,18 @@ def aTmCamTestFit43(dmjd_array, airmass_array, pwv_array, dmag_array):
     mdn = np.median( dmag_array, None )
 
     # Parameter names
-    pname = (['a_0', 'a_1', 'k_airmass', 'k_pwv'])
+    #pname = (['a_0', 'a_1', 'k_airmass', 'k_pwv'])
+    pname = (['a_0', 'a_1', 'k_airmass', 'k1_pwv', 'k2_pwv'])
+    #pname = (['a_0', 'k_airmass', 'k1_pwv', 'k2_pwv'])
+    #pname = (['a_0', 'k_airmass', 'k2_pwv'])
+    #pname = (['a_0', 'k_airmass', 'k4_pwv'])
 
     # Initial parameter values
-    p0 = [mdn, 0.0, 0.0, 0.0]
+    #p0 = [mdn, 0.0, 0.0, 0.0]
+    p0 = [mdn, 0.0, 0.0, 0.0, 0.0]
+    #p0 = [mdn, 0.0, 0.0, 0.0]
+    #p0 = [mdn, 0.0, 0.0]
+    #p0 = [mdn, 0.0, 0.0]
 
     print 
     print 'Initial parameter values:  ', p0
