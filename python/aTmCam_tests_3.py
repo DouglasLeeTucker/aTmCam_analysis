@@ -516,7 +516,9 @@ def main():
     df.drop('vigintile', axis=1, inplace=True)
 
     # Add a dmjd column to df...
-    df.loc[:,'dmjd'] = df.loc[:,'mjd'] - df.mjd.min()
+    mjd0 = int(df.mjd.min()+0.3)
+    df.loc[:,'dmjd'] = df.loc[:,'mjd'] - mjd0
+
 
     # Save a cleaned copy of the original data....
     df_orig_clean = df.copy()
@@ -688,6 +690,214 @@ def main():
         plt.close()
 
         outputFile = """Temp/df_%sres.csv""" % (dmag)
+        df.to_csv(outputFile, index=False)    
+
+
+        
+    # Let's try the above for (mag1,mag2,mag3), but solving for k on a night-by-night basis... 
+
+    for dmag in dmaglist:
+
+        # We need to do something special for dmag4, so skip it for now...
+        if dmag=='dmag4': continue
+
+        print dmag
+
+        df = df_orig_clean.copy()
+        
+        # Create initial (and generous)  mask...
+        mask = ( df['airmass'] < 10.0 )
+
+        # Sigma-clipping parameters...
+        nsigma = 3.0
+        niter = 3
+
+        for i in range(niter):
+
+            iiter = i + 1
+            print """   iter%d...""" % ( iiter )
+
+            # make a copy of original df, and then delete the old one...
+            df = df[mask].copy()
+            #del df
+
+            # Update/create nightIndex column...
+            # If there is a pre-existing nightIndex column in df, delete it...
+            if 'nightIndex' in df.columns:
+                df.drop('nightIndex', axis=1, inplace=True)
+            # Create nightIndex column for df...
+            nightArray = np.sort(df.imjd.unique())
+            nightDF = pd.DataFrame(nightArray, columns=['imjd'])
+            nightDF['nightIndex'] = nightDF.index
+            df = pd.merge(df, nightDF, on='imjd', how='inner')
+
+            #p,rms = aTmCamTestFitTest(df.loc[:,'dmjd'], df.loc[:,'nightIndex'],df.loc[:,'airmass'], df.loc[:,dmag])
+            #df.loc[:,'res'] = residualstest(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
+            outCorrFile = """./Temp/%s_corrmatrix_hip117542_mjdfit-nightly-k_iter%d.fits""" % (dmag, iiter)
+            p,perr,pname,rms = aTmCamTestFitTest(df, nightDF, dmag, outCorrFile)
+            df.loc[:,'res'] = residualstest(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
+
+            # Output parameter fits
+            mjd0Array = len(nightArray)*[mjd0]
+            a0Array = len(nightArray)*[p[0]]
+            a0errArray = len(nightArray)*[perr[0]]
+            a1Array = len(nightArray)*[p[1]]
+            a1errArray = len(nightArray)*[perr[1]]
+            rmsArray = len(nightArray)*[rms]
+            resultsDF = pd.DataFrame(
+                {'imjd': nightArray,
+                 'a0': a0Array,
+                 'a0_err': a0errArray,
+                 'a1': a1Array, 
+                 'a1_err': a1errArray,
+                 'mjd0' : mjd0Array, 
+                 'pname': pname[2:],
+                 'k': p[2:],
+                 'k_err': perr[2:],
+                 'rms': rmsArray
+                })
+            # Re-order columns:
+            resultsDF = resultsDF[['imjd','mjd0','a0','a0_err','a1','a1_err','k','k_err','rms','pname']]
+            # Actual output...
+            outputFile = """./Temp/%s_results_hip117542_mjdfit-nightly-k_iter%d.csv""" % (dmag, iiter)
+            resultsDF.to_csv(outputFile,index=False)
+            
+            stddev = df['res'].std()
+            mask = (np.abs(df.res)< nsigma*stddev)
+    
+            ax=df.plot('mjd','res', grid=True, kind='scatter')
+            #plt.plot(df.mjd,p(df.mjd),'m-')
+            fig = ax.get_figure()
+            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit-nightly-k_iter%d.png""" % (dmag, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+            ax=df.plot('airmass','res', grid=True, kind='scatter')
+            #plt.plot(df.mjd,p(df.mjd),'m-')
+            fig = ax.get_figure()
+            outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit-nightly-k_iter%d.png""" % (dmag, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+            ax=df['res'].hist(grid=True, bins=100)
+            fig = ax.get_figure()
+            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit-nightly-k_reshist_iter%d.png""" % (dmag, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+    
+        # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
+        x=df['airmass']
+        y=df['res']
+        xmin = 1.0
+        xmax = 3.25
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        #ymin = -1.0*df.res.std()
+        #ymax = df.res.std()
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("airmass")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('log10(N)')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.nightly-k.png""" % (dmag)
+        fig.savefig(outputFile)
+        plt.close()
+    
+    
+        # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
+        x=df['airmass']
+        y=df['res']
+        z=df['pwv']
+        xmin = 1.0
+        xmax = 3.25
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("airmass")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('PWV')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.nightly-k.png"""% (dmag)
+        fig.savefig(outputFile)
+        plt.close()
+
+
+        # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
+        x=df['mjd']
+        y=df['res']
+        xmin = df.mjd.min()
+        xmax = df.mjd.max()
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("MJD")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('log10(N)')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.nightly-k.png"""% (dmag)
+        fig.savefig(outputFile)
+        plt.close()
+    
+    
+        # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
+        x=df['mjd']
+        y=df['res']
+        z=df['pwv']
+        xmin = df.mjd.min()
+        xmax = df.mjd.max()
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("MJD")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('PWV')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.nightly-k.png"""% (dmag)
+        fig.savefig(outputFile)
+        plt.close()
+
+        outputFile = """Temp/df_%sres.nightly-k.csv""" % (dmag)
         df.to_csv(outputFile, index=False)    
 
 
@@ -1410,6 +1620,123 @@ def aTmCamTestFit43(dmjd_array, airmass_array, pwv_array, dmag_array):
     print
     
     return p, rms
+
+#--------------------------------------------------------------------------
+# Parametric function:  
+#  p is the parameter vector; 
+def fptest(p,dmjd_array,night_index_array,airmass_array):
+    return p[0] + p[1]*dmjd_array + p[2+night_index_array]*airmass_array
+
+#--------------------------------------------------------------------------
+# Error function:
+def residualstest(p,dmjd_array,night_index_array,airmass_array,dmag_array):
+    err = (dmag_array-fptest(p,dmjd_array,night_index_array,airmass_array))
+    return err
+
+#--------------------------------------------------------------------------
+# Fitting code:
+def aTmCamTestFitTest(df, nightDF, dmag, outCorrFile=None):
+
+    # Only need astropy.io.fits if we are outputting an outCorrFile...
+    if outCorrFile is not None:
+        from astropy.io import fits
+    
+
+    # Extract arrays needed later...
+    # (dmjd_array, night_index_array, airmass_array, dmag_array
+    dmjd_array = df.loc[:,'dmjd']
+    night_index_array = df.loc[:,'nightIndex']
+    airmass_array = df.loc[:,'airmass']
+    dmag_array = df.loc[:,dmag]
+
+    
+    # Calculate the median of dmag for use as an initial guess
+    # for the overall zeropoint offset..
+    mdn = np.median( dmag_array, None )
+
+
+    # Set the parameter names and the initial parameter values...
+    pname = (['a_0', 'a_1'])
+    p0 = [mdn, 0.0]
+    for ii in range(nightDF.imjd.size):
+        kname = 'k_'+str(nightDF.loc[ii, 'imjd'])
+        #kname = 'k_'+str(nightDF.loc[ii, 'nightIndex'])
+        pname.append(kname)
+        p0.append(0.)
+
+    print 
+    print 'Initial parameter values:  ', p0
+
+
+    # Perform fit
+
+    p,cov,infodict,mesg,ier = leastsq(residualstest, p0, args=(dmjd_array, night_index_array, airmass_array, dmag_array), maxfev=10000, full_output=1)
+
+    if ( ier>=1 and ier <=4):
+        print "Converged"
+    else:
+        print "Not converged"
+        print mesg
+
+
+    # Calculate some descriptors of the fit 
+    # (similar to the output from gnuplot 2d fits)
+
+    chisq=sum(infodict['fvec']*infodict['fvec'])
+    dof=len(dmag_array)-len(p)
+    rms=math.sqrt(chisq/dof)
+    
+    print "Converged with chi squared ",chisq
+    print "degrees of freedom, dof ", dof
+    print "RMS of residuals (i.e. sqrt(chisq/dof)) ", rms
+    print "Reduced chisq (i.e. variance of residuals) ", chisq/dof
+    print
+
+
+    # uncertainties are calculated as per gnuplot, "fixing" the result
+    # for non unit values of the reduced chisq.
+    # values at min match gnuplot
+    print "Fitted parameters at minimum, with 68% C.I.:"
+    perr = []
+    for i,pmin in enumerate(p):
+        print "%-10s %13g +/- %13g   (%5f percent)" % (pname[i],pmin,math.sqrt(cov[i,i])*math.sqrt(chisq/dof),100.*math.sqrt(cov[i,i])*math.sqrt(chisq/dof)/abs(pmin))
+        perr.append(math.sqrt(cov[i,i])*math.sqrt(chisq/dof))
+    print
+
+
+    print "Correlation matrix (up to first 10 parameters in parameter list):"
+    nsize1 = min(len(pname), 10)
+    nsize2 = min(len(p), 10)
+    # correlation matrix close to gnuplot
+    print "               ",
+    for i in range(nsize1): print "%-10s" % (pname[i],),
+    print
+    for i in range(nsize2):
+        print "%-10s" % pname[i],
+        for j in range(i+1):
+	    print "%10f" % (cov[i,j]/math.sqrt(cov[i,i]*cov[j,j]),),
+        #endfor
+        print
+    #endfor
+
+    if outCorrFile is not None:
+        # Create a numpy array "corr" with the same shape as the numpy array "cov",
+        #  update all its entries with the values of the correlation matrix, and
+        #  write the result to a FITS image...
+        corr = np.copy(cov)
+        for i in range(len(p)):
+            for j in range(len(p)):
+	        corr[i,j] = cov[i,j]/math.sqrt(cov[i,i]*cov[j,j])
+            # endfor
+        # endfor
+        hdu = fits.PrimaryHDU(corr)
+        hdu.writeto(outCorrFile,clobber=True)
+    
+    print
+    print
+    print
+    
+    return p, perr, pname, rms
 
 #--------------------------------------------------------------------------
 
