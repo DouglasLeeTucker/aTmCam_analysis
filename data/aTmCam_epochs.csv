@@ -1,0 +1,8 @@
+# Epochs are defined by noteworthy discontinuities in aTmCam throughput,
+#  most likely due to cleaning of the lenses.
+# Epoch limits are defined by mjd_start <= mjd < mjd_end.
+epoch,mjd_start,mjd_end,comments
+Epoch_001,56900,57150,first season of standard operations
+Epoch_002,57150,57415,
+Epoch_003,57415,57612,
+Epoch_004,57612,57822,mjd_end marks the end of the current data set
