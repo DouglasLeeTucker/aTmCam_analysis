@@ -3,6 +3,7 @@
 # Epoch limits are defined by mjd_start <= mjd < mjd_end.
 epoch,mjd_start,mjd_end,comments
 Epoch_001,56900,57150,first season of standard operations
-Epoch_002,57150,57415,
-Epoch_003,57415,57612,
-Epoch_004,57612,57822,mjd_end marks the end of the current data set
+Epoch_002,57150,57370,
+Epoch_003,57370,57415,band2 lens cleaned?
+Epoch_004,57415,57612,
+Epoch_005,57612,57822,mjd_end marks the end of the current data set
