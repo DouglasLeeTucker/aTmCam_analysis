@@ -8,7 +8,7 @@ import glob
 import math
 import matplotlib.pyplot as plt
 from scipy.optimize import leastsq
-
+import os
 
 
 #--------------------------------------------------------------------------
@@ -314,7 +314,7 @@ def main():
     plt.close()
 
 
-    # If we plot dmag4-dmag3, we can remove the effects of clouds...
+    # If we plot dmag4-dmag3, we can remove the effects of clouds and other "gray" throughput variations...
     x=magobsdf_new[(magobsdf_new.object=='HIP117452')].pwv
     y1=magobsdf_new[(magobsdf_new.object=='HIP117452')].dmag4
     y2=magobsdf_new[(magobsdf_new.object=='HIP117452')].dmag3
@@ -443,105 +443,55 @@ def main():
 
 
     #
-    # Let's work a bit with just the HIP117452 data from before MJD 57100...
+    # Let's work a bit with just the HIP117452 data over the different optics cleaning epochs experienced by aTmCam...
     #
 
-    # We will call the new dataframe df...
-    df_orig = magobsdf_new[( (magobsdf_new.mjd < 57000.) & (magobsdf_new.object=='HIP117452') )].copy()
-    df = df_orig.copy()
-
-    # Since the mag3 filter has almost no airmass dependence, we will use it to do an initial
-    # identification and masking of cloudy exposures...
+    # Read in the aTmCam "epochs" file...
+    # Grab path and name of aTmCam_epochs.csv file in the DECam_PGCM data directory...
+    #  Is there a better way to do this?  See also:
+    #  http://stackoverflow.com/questions/779495/python-access-data-in-package-subdirectory
+    # Absolute path for the directory containing this module:
+    moduleAbsPathName = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    aTmCamEpochsFile = os.path.join(moduleAbsPathName, "data", "aTmCam_epochs.csv")
+    if os.path.isfile(aTmCamEpochsFile)==False:
+        print """aTmCamEpochsFile %s does not exist...""" % (aTmCamEpochsFile)
+        print 'Returning with error code 1 now...'
+        return 1
+    aTmCamEpochsDF = pd.read_csv(aTmCamEpochsFile, comment='#')
+    print 'aTmCamEpochs:  '
+    print aTmCamEpochsDF
+    nepochs = aTmCamEpochsDF.epoch.size
     
-    # First, create a mask that removes the most egregiously bad mag3 exposures...
-    mask1 = ( np.abs(df['dmag3']) < 1.0 )
+    for iepoch in range(nepochs):
 
-    # Then, identify and and mask the worst 5% of mag3 exposures remaining...
-    df['vigintile'] = pd.qcut( df['dmag3'], 20, labels=False )
-    mask2 = (df['vigintile']<19)
+        epoch = aTmCamEpochsDF.epoch.iloc[iepoch]
+        mjd_start = aTmCamEpochsDF.mjd_start.iloc[iepoch]
+        mjd_end = aTmCamEpochsDF.mjd_end.iloc[iepoch]
 
-    # Combine mask1 and mask2
-    mask = mask1 & mask2
-
-    # Do an iterative loop to remove the additional, noticeably cloudy exposures...
-    niter = 9
-    nsigma = 3.0
-    for i in range(niter):
-
-        iiter = i + 1
-        print """   iter%d...""" % ( iiter )
-
-        # make a copy of original df, and then delete the old one...
-        df = df[mask].copy()
-        #del df
-
-        # Fit a straight line to dmag3 vs. mjd...
-        z = np.polyfit(x=df.loc[:, 'mjd'], y=df.loc[:, 'dmag3'], deg=1)
-        p = np.poly1d(z)
-
-        mag_per_100_days = 100*z[0]
+        print """Epoch:  %s  (%d <= MJD < %d)""" % (epoch, mjd_start, mjd_end)
     
-        # Confirm this:
-        #df.loc[:,'res'] = df.dmag3 - p(df.mjd)
-        df.loc[:,'res'] = df.loc[:,'dmag3'] - p(df.mjd)
-        #df.loc[:,'res'] = df.loc[:,'dmag3'] - p(df.loc[:,'mjd'])
+        # We will call the new dataframe df...
+        df_orig = magobsdf_new[( (magobsdf_new.mjd >= mjd_start) &
+                                 (magobsdf_new.mjd < mjd_end) &
+                                 (magobsdf_new.object=='HIP117452') )].copy()
+        df = df_orig.copy()
 
-        stddev = df['res'].std()
-        mask = (np.abs(df.res)< nsigma*stddev)
+        # Since the mag3 filter has almost no airmass dependence, we will use it to do an initial
+        # identification and masking of cloudy exposures...
     
-        nrows = df['dmag3'].size
-        print """  RMS:  %f\nNumber of rows remaining:  %d""" % ( stddev, nrows )
-        print """  mags per 100 days:  %f""" % (mag_per_100_days)
-        print 
-    
-        #df = newdf
+        # First, create a mask that removes the most egregiously bad mag3 exposures...
+        mask1 = ( np.abs(df['dmag3']) < 1.0 )
 
-        ax=df.plot('mjd','dmag3', grid=True, kind='scatter')
-        plt.plot(df.mjd,p(df.mjd),'m-')
-        fig = ax.get_figure()
-        outputFile = """./Temp/dmag3_vs_mjd_hip117542_mjdfit_iter%d.png""" % (iiter)
-        fig.savefig(outputFile)
-        plt.close()
+        # Then, identify and and mask the worst 5% of mag3 exposures remaining...
+        df['vigintile'] = pd.qcut( df['dmag3'], 20, labels=False )
+        mask2 = (df['vigintile']<19)
 
-        ax=df.hist('res', grid=True, bins=100)
-        ax=df['res'].hist(grid=True, bins=100)
-        fig = ax.get_figure()
-        outputFile = """./Temp/dmag3_vs_mjd_hip117542_mjdfit_reshist_iter%d.png""" % (iiter)
-        fig.savefig(outputFile)
-        plt.close()
+        # Combine mask1 and mask2
+        mask = mask1 & mask2
 
-    
-    #endloop
-    
-    df.drop('vigintile', axis=1, inplace=True)
-
-    # Add a dmjd column to df...
-    mjd0 = int(df.mjd.min()+0.3)
-    df.loc[:,'dmjd'] = df.loc[:,'mjd'] - mjd0
-
-
-    # Save a cleaned copy of the original data....
-    df_orig_clean = df.copy()
-
-
-    # Now that the obviously cloudy/bad exposures have been removed, let's do a fit of dmag vs. (dmjd,airmass)
-
-    for dmag in dmaglist:
-
-        # We need to do something special for dmag4, so skip it for now...
-        if dmag=='dmag4': continue
-
-        print dmag
-
-        df = df_orig_clean.copy()
-        
-        # Create initial (and generous)  mask...
-        mask = ( df['airmass'] < 10.0 )
-
-        # Sigma-clipping parameters...
+        # Do an iterative loop to remove the additional, noticeably cloudy exposures...
+        niter = 9
         nsigma = 3.0
-        niter = 3
-
         for i in range(niter):
 
             iiter = i + 1
@@ -551,240 +501,492 @@ def main():
             df = df[mask].copy()
             #del df
 
-            p,rms = aTmCamTestFit(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,dmag])
-            df.loc[:,'res'] = residuals(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,dmag])
+            # Fit a straight line to dmag3 vs. mjd...
+            z = np.polyfit(x=df.loc[:, 'mjd'], y=df.loc[:, 'dmag3'], deg=1)
+            p = np.poly1d(z)
+
+            mag_per_100_days = 100*z[0]
+    
+            # Confirm this:
+            #df.loc[:,'res'] = df.dmag3 - p(df.mjd)
+            df.loc[:,'res'] = df.loc[:,'dmag3'] - p(df.mjd)
+            #df.loc[:,'res'] = df.loc[:,'dmag3'] - p(df.loc[:,'mjd'])
 
             stddev = df['res'].std()
             mask = (np.abs(df.res)< nsigma*stddev)
     
-            ax=df.plot('mjd','res', grid=True, kind='scatter')
-            #plt.plot(df.mjd,p(df.mjd),'m-')
+            nrows = df['dmag3'].size
+            print """  RMS:  %f\nNumber of rows remaining:  %d""" % ( stddev, nrows )
+            print """  mags per 100 days:  %f""" % (mag_per_100_days)
+            print 
+    
+            #df = newdf
+
+            ax=df.plot('mjd','dmag3', grid=True, kind='scatter')
+            plt.plot(df.mjd,p(df.mjd),'m-')
             fig = ax.get_figure()
-            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
+            outputFile = """./Temp/dmag3_vs_mjd_hip117542_mjdfit_%s_iter%d.png""" % (epoch, iiter)
             fig.savefig(outputFile)
             plt.close()
 
-            ax=df.plot('airmass','res', grid=True, kind='scatter')
-            #plt.plot(df.mjd,p(df.mjd),'m-')
-            fig = ax.get_figure()
-            outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
-            fig.savefig(outputFile)
-            plt.close()
-
+            ax=df.hist('res', grid=True, bins=100)
             ax=df['res'].hist(grid=True, bins=100)
             fig = ax.get_figure()
-            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist_iter%d.png""" % (dmag, iiter)
+            outputFile = """./Temp/dmag3_vs_mjd_hip117542_mjdfit_reshist_%s_iter%d.png""" % (epoch, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+        # endfor
+    
+        df.drop('vigintile', axis=1, inplace=True)
+
+        # Add a dmjd column to df...
+        mjd0 = int(df.mjd.min()+0.3)
+        df.loc[:,'dmjd'] = df.loc[:,'mjd'] - mjd0
+
+
+        # Save a cleaned copy of the original data....
+        df_orig_clean = df.copy()
+
+
+        # Now that the obviously cloudy/bad exposures have been removed, let's do a fit of dmag vs. (dmjd,airmass)
+
+        for dmag in dmaglist:
+
+            # We need to do something special for dmag4, so skip it for now...
+            if dmag=='dmag4': continue
+
+            print dmag
+
+            df = df_orig_clean.copy()
+        
+            # Create initial (and generous)  mask...
+            mask = ( df['airmass'] < 10.0 )
+
+            # Sigma-clipping parameters...
+            nsigma = 3.0
+            niter = 3
+
+            for i in range(niter):
+
+                iiter = i + 1
+                print """   iter%d...""" % ( iiter )
+
+                # make a copy of original df, and then delete the old one...
+                df = df[mask].copy()
+                #del df
+
+                p,rms = aTmCamTestFit(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,dmag])
+                df.loc[:,'res'] = residuals(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,dmag])
+
+                stddev = df['res'].std()
+                mask = (np.abs(df.res)< nsigma*stddev)
+    
+                ax=df.plot('mjd','res', grid=True, kind='scatter')
+                #plt.plot(df.mjd,p(df.mjd),'m-')
+                fig = ax.get_figure()
+                outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
+                fig.savefig(outputFile)
+                plt.close()
+
+                ax=df.plot('airmass','res', grid=True, kind='scatter')
+                #plt.plot(df.mjd,p(df.mjd),'m-')
+                fig = ax.get_figure()
+                outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
+                fig.savefig(outputFile)
+                plt.close()
+
+                ax=df['res'].hist(grid=True, bins=100)
+                fig = ax.get_figure()
+                outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist_%s_iter%d.png""" % (dmag, epoch, iiter)
+                fig.savefig(outputFile)
+                plt.close()
+
+            # endfor
+    
+            # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
+            x=df['airmass']
+            y=df['res']
+            xmin = 1.0
+            xmax = 3.25
+            ymin = -3.0*df.res.std()
+            ymax =  3.0*df.res.std()
+            #ymin = -0.1
+            #ymax = 0.1
+            #ymin = -1.0*df.res.std()
+            #ymax = df.res.std()
+            fig, axs = plt.subplots(ncols=1)
+            ax=axs
+            hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+            ax.axis([xmin, xmax, ymin, ymax])
+            ax.set_title("HIP117452")
+            ax.set_xlabel("airmass")
+            ylabel="""%sres"""  % (dmag)
+            ax.set_ylabel(ylabel)
+            cb = fig.colorbar(hb, ax=ax)
+            cb.set_label('log10(N)')
+            plt.grid(True)
+            ax.grid(color='white')
+            #plt.show()
+            outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.%s.png""" % (dmag, epoch)
             fig.savefig(outputFile)
             plt.close()
 
     
-        # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
-        x=df['airmass']
-        y=df['res']
-        xmin = 1.0
-        xmax = 3.25
-        ymin = -3.0*df.res.std()
-        ymax =  3.0*df.res.std()
-        #ymin = -0.1
-        #ymax = 0.1
-        #ymin = -1.0*df.res.std()
-        #ymax = df.res.std()
-        fig, axs = plt.subplots(ncols=1)
-        ax=axs
-        hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
-        ax.axis([xmin, xmax, ymin, ymax])
-        ax.set_title("HIP117452")
-        ax.set_xlabel("airmass")
-        ylabel="""%sres"""  % (dmag)
-        ax.set_ylabel(ylabel)
-        cb = fig.colorbar(hb, ax=ax)
-        cb.set_label('log10(N)')
-        plt.grid(True)
-        ax.grid(color='white')
-        #plt.show()
-        outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.png""" % (dmag)
-        fig.savefig(outputFile)
-        plt.close()
+            # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
+            x=df['airmass']
+            y=df['res']
+            z=df['pwv']
+            xmin = 1.0
+            xmax = 3.25
+            ymin = -3.0*df.res.std()
+            ymax =  3.0*df.res.std()
+            #ymin = -0.1
+            #ymax = 0.1
+            fig, axs = plt.subplots(ncols=1)
+            ax=axs
+            hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+            ax.axis([xmin, xmax, ymin, ymax])
+            ax.set_title("HIP117452")
+            ax.set_xlabel("airmass")
+            ylabel="""%sres"""  % (dmag)
+            ax.set_ylabel(ylabel)
+            cb = fig.colorbar(hb, ax=ax)
+            cb.set_label('PWV')
+            plt.grid(True)
+            ax.grid(color='white')
+            #plt.show()
+            outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.%s.png"""% (dmag, epoch)
+            fig.savefig(outputFile)
+            plt.close()
+
+
+            # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
+            x=df['mjd']
+            y=df['res']
+            xmin = df.mjd.min()
+            xmax = df.mjd.max()
+            ymin = -3.0*df.res.std()
+            ymax =  3.0*df.res.std()
+            #ymin = -0.1
+            #ymax = 0.1
+            fig, axs = plt.subplots(ncols=1)
+            ax=axs
+            hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+            ax.axis([xmin, xmax, ymin, ymax])
+            ax.set_title("HIP117452")
+            ax.set_xlabel("MJD")
+            ylabel="""%sres"""  % (dmag)
+            ax.set_ylabel(ylabel)
+            cb = fig.colorbar(hb, ax=ax)
+            cb.set_label('log10(N)')
+            plt.grid(True)
+            ax.grid(color='white')
+            #plt.show()
+            outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.%s.png"""% (dmag, epoch)
+            fig.savefig(outputFile)
+            plt.close()
     
     
-        # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
-        x=df['airmass']
-        y=df['res']
-        z=df['pwv']
-        xmin = 1.0
-        xmax = 3.25
-        ymin = -3.0*df.res.std()
-        ymax =  3.0*df.res.std()
-        #ymin = -0.1
-        #ymax = 0.1
-        fig, axs = plt.subplots(ncols=1)
-        ax=axs
-        hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
-        ax.axis([xmin, xmax, ymin, ymax])
-        ax.set_title("HIP117452")
-        ax.set_xlabel("airmass")
-        ylabel="""%sres"""  % (dmag)
-        ax.set_ylabel(ylabel)
-        cb = fig.colorbar(hb, ax=ax)
-        cb.set_label('PWV')
-        plt.grid(True)
-        ax.grid(color='white')
-        #plt.show()
-        outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.png"""% (dmag)
-        fig.savefig(outputFile)
-        plt.close()
+            # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
+            x=df['mjd']
+            y=df['res']
+            z=df['pwv']
+            xmin = df.mjd.min()
+            xmax = df.mjd.max()
+            ymin = -3.0*df.res.std()
+            ymax =  3.0*df.res.std()
+            #ymin = -0.1
+            #ymax = 0.1
+            fig, axs = plt.subplots(ncols=1)
+            ax=axs
+            hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+            ax.axis([xmin, xmax, ymin, ymax])
+            ax.set_title("HIP117452")
+            ax.set_xlabel("MJD")
+            ylabel="""%sres"""  % (dmag)
+            ax.set_ylabel(ylabel)
+            cb = fig.colorbar(hb, ax=ax)
+            cb.set_label('PWV')
+            plt.grid(True)
+            ax.grid(color='white')
+            #plt.show()
+            outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.%s.png"""% (dmag, epoch)
+            fig.savefig(outputFile)
+            plt.close()
 
+            outputFile = """Temp/df_%sres.HIP117452.%s.csv""" % (dmag, epoch)
+            df.to_csv(outputFile, index=False)    
 
-        # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
-        x=df['mjd']
-        y=df['res']
-        xmin = df.mjd.min()
-        xmax = df.mjd.max()
-        ymin = -3.0*df.res.std()
-        ymax =  3.0*df.res.std()
-        #ymin = -0.1
-        #ymax = 0.1
-        fig, axs = plt.subplots(ncols=1)
-        ax=axs
-        hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
-        ax.axis([xmin, xmax, ymin, ymax])
-        ax.set_title("HIP117452")
-        ax.set_xlabel("MJD")
-        ylabel="""%sres"""  % (dmag)
-        ax.set_ylabel(ylabel)
-        cb = fig.colorbar(hb, ax=ax)
-        cb.set_label('log10(N)')
-        plt.grid(True)
-        ax.grid(color='white')
-        #plt.show()
-        outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.png"""% (dmag)
-        fig.savefig(outputFile)
-        plt.close()
-    
-    
-        # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
-        x=df['mjd']
-        y=df['res']
-        z=df['pwv']
-        xmin = df.mjd.min()
-        xmax = df.mjd.max()
-        ymin = -3.0*df.res.std()
-        ymax =  3.0*df.res.std()
-        #ymin = -0.1
-        #ymax = 0.1
-        fig, axs = plt.subplots(ncols=1)
-        ax=axs
-        hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
-        ax.axis([xmin, xmax, ymin, ymax])
-        ax.set_title("HIP117452")
-        ax.set_xlabel("MJD")
-        ylabel="""%sres"""  % (dmag)
-        ax.set_ylabel(ylabel)
-        cb = fig.colorbar(hb, ax=ax)
-        cb.set_label('PWV')
-        plt.grid(True)
-        ax.grid(color='white')
-        #plt.show()
-        outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.png"""% (dmag)
-        fig.savefig(outputFile)
-        plt.close()
-
-        outputFile = """Temp/df_%sres.csv""" % (dmag)
-        df.to_csv(outputFile, index=False)    
-
-
+        # endfor
         
-    # Let's try the above for (mag1,mag2,mag3), but solving for k on a night-by-night basis... 
+        # Let's try the above for (mag1,mag2,mag3), but solving for k on a night-by-night basis... 
 
-    for dmag in dmaglist:
+        for dmag in dmaglist:
 
-        # We need to do something special for dmag4, so skip it for now...
-        if dmag=='dmag4': continue
+            # We need to do something special for dmag4, so skip it for now...
+            if dmag=='dmag4': continue
 
-        print dmag
+            print dmag
 
-        df = df_orig_clean.copy()
+            df = df_orig_clean.copy()
         
-        # Create initial (and generous)  mask...
-        mask = ( df['airmass'] < 10.0 )
+            # Create initial (and generous)  mask...
+            mask = ( df['airmass'] < 10.0 )
 
-        # Sigma-clipping parameters...
-        nsigma = 3.0
-        niter = 3
+            # Sigma-clipping parameters...
+            nsigma = 3.0
+            niter = 3
 
-        for i in range(niter):
+            for i in range(niter):
 
-            iiter = i + 1
-            print """   iter%d...""" % ( iiter )
+                iiter = i + 1
+                print """   iter%d...""" % ( iiter )
 
-            # make a copy of original df, and then delete the old one...
-            df = df[mask].copy()
-            #del df
+                # make a copy of original df, and then delete the old one...
+                df = df[mask].copy()
+                #del df
 
-            # Update/create nightIndex column...
-            # If there is a pre-existing nightIndex column in df, delete it...
-            if 'nightIndex' in df.columns:
-                df.drop('nightIndex', axis=1, inplace=True)
-            # Create nightIndex column for df...
-            nightArray = np.sort(df.imjd.unique())
-            nightDF = pd.DataFrame(nightArray, columns=['imjd'])
-            nightDF['nightIndex'] = nightDF.index
-            df = pd.merge(df, nightDF, on='imjd', how='inner')
+                # Update/create nightIndex column...
+                # If there is a pre-existing nightIndex column in df, delete it...
+                if 'nightIndex' in df.columns:
+                    df.drop('nightIndex', axis=1, inplace=True)
+                # Create nightIndex column for df...
+                nightArray = np.sort(df.imjd.unique())
+                nightDF = pd.DataFrame(nightArray, columns=['imjd'])
+                nightDF['nightIndex'] = nightDF.index
+                df = pd.merge(df, nightDF, on='imjd', how='inner')
 
-            #p,rms = aTmCamTestFitTest(df.loc[:,'dmjd'], df.loc[:,'nightIndex'],df.loc[:,'airmass'], df.loc[:,dmag])
-            #df.loc[:,'res'] = residualstest(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
-            outCorrFile = """./Temp/%s_corrmatrix_hip117542_mjdfit-nightly-k_iter%d.fits""" % (dmag, iiter)
-            p,perr,pname,rms = aTmCamTestFitTest(df, nightDF, dmag, outCorrFile)
-            df.loc[:,'res'] = residualstest(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
+                #p,rms = aTmCamTestFitTest(df.loc[:,'dmjd'], df.loc[:,'nightIndex'],df.loc[:,'airmass'], df.loc[:,dmag])
+                #df.loc[:,'res'] = residualstest(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
+                outCorrFile = """./Temp/%s_corrmatrix_hip117542_mjdfit-nightly-k_%s_iter%d.fits""" % (dmag, epoch, iiter)
+                p,perr,pname,rms = aTmCamTestFitTest(df, nightDF, dmag, outCorrFile)
+                df.loc[:,'res'] = residualstest(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
 
-            # Output parameter fits
-            mjd0Array = len(nightArray)*[mjd0]
-            a0Array = len(nightArray)*[p[0]]
-            a0errArray = len(nightArray)*[perr[0]]
-            a1Array = len(nightArray)*[p[1]]
-            a1errArray = len(nightArray)*[perr[1]]
-            rmsArray = len(nightArray)*[rms]
-            resultsDF = pd.DataFrame(
-                {'imjd': nightArray,
-                 'a0': a0Array,
-                 'a0_err': a0errArray,
-                 'a1': a1Array, 
-                 'a1_err': a1errArray,
-                 'mjd0' : mjd0Array, 
-                 'pname': pname[2:],
-                 'k': p[2:],
-                 'k_err': perr[2:],
-                 'rms': rmsArray
-                })
-            # Re-order columns:
-            resultsDF = resultsDF[['imjd','mjd0','a0','a0_err','a1','a1_err','k','k_err','rms','pname']]
-            # Actual output...
-            outputFile = """./Temp/%s_results_hip117542_mjdfit-nightly-k_iter%d.csv""" % (dmag, iiter)
-            resultsDF.to_csv(outputFile,index=False)
+                # Output parameter fits
+                mjd0Array = len(nightArray)*[mjd0]
+                a0Array = len(nightArray)*[p[0]]
+                a0errArray = len(nightArray)*[perr[0]]
+                a1Array = len(nightArray)*[p[1]]
+                a1errArray = len(nightArray)*[perr[1]]
+                rmsArray = len(nightArray)*[rms]
+                resultsDF = pd.DataFrame(
+                    {'imjd': nightArray,
+                     'a0': a0Array,
+                     'a0_err': a0errArray,
+                     'a1': a1Array, 
+                     'a1_err': a1errArray,
+                     'mjd0' : mjd0Array, 
+                     'pname': pname[2:],
+                     'k': p[2:],
+                     'k_err': perr[2:],
+                     'rms': rmsArray
+                    })
+                # Re-order columns:
+                resultsDF = resultsDF[['imjd','mjd0','a0','a0_err','a1','a1_err','k','k_err','rms','pname']]
+                # Actual output...
+                outputFile = """./Temp/%s_results_hip117542_mjdfit-nightly-k_%s_iter%d.csv""" % (dmag, epoch, iiter)
+                resultsDF.to_csv(outputFile,index=False)
             
+                stddev = df['res'].std()
+                mask = (np.abs(df.res)< nsigma*stddev)
+    
+                ax=df.plot('mjd','res', grid=True, kind='scatter')
+                #plt.plot(df.mjd,p(df.mjd),'m-')
+                fig = ax.get_figure()
+                outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit-nightly-k_%s_iter%d.png""" % (dmag, epoch, iiter)
+                fig.savefig(outputFile)
+                plt.close()
+
+                ax=df.plot('airmass','res', grid=True, kind='scatter')
+                #plt.plot(df.mjd,p(df.mjd),'m-')
+                fig = ax.get_figure()
+                outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit-nightly-k_%s_iter%d.png""" % (dmag, epoch, iiter)
+                fig.savefig(outputFile)
+                plt.close()
+
+                ax=df['res'].hist(grid=True, bins=100)
+                fig = ax.get_figure()
+                outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit-nightly-k_reshist_%s_iter%d.png""" % (dmag, epoch, iiter)
+                fig.savefig(outputFile)
+                plt.close()
+
+            # endfor
+
+            
+            # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
+            x=df['airmass']
+            y=df['res']
+            xmin = 1.0
+            xmax = 3.25
+            ymin = -3.0*df.res.std()
+            ymax =  3.0*df.res.std()
+            #ymin = -0.1
+            #ymax = 0.1
+            #ymin = -1.0*df.res.std()
+            #ymax = df.res.std()
+            fig, axs = plt.subplots(ncols=1)
+            ax=axs
+            hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+            ax.axis([xmin, xmax, ymin, ymax])
+            ax.set_title("HIP117452")
+            ax.set_xlabel("airmass")
+            ylabel="""%sres"""  % (dmag)
+            ax.set_ylabel(ylabel)
+            cb = fig.colorbar(hb, ax=ax)
+            cb.set_label('log10(N)')
+            plt.grid(True)
+            ax.grid(color='white')
+            #plt.show()
+            outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.%s.nightly-k.png""" % (dmag, epoch)
+            fig.savefig(outputFile)
+            plt.close()
+    
+    
+            # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
+            x=df['airmass']
+            y=df['res']
+            z=df['pwv']
+            xmin = 1.0
+            xmax = 3.25
+            ymin = -3.0*df.res.std()
+            ymax =  3.0*df.res.std()
+            #ymin = -0.1
+            #ymax = 0.1
+            fig, axs = plt.subplots(ncols=1)
+            ax=axs
+            hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+            ax.axis([xmin, xmax, ymin, ymax])
+            ax.set_title("HIP117452")
+            ax.set_xlabel("airmass")
+            ylabel="""%sres"""  % (dmag)
+            ax.set_ylabel(ylabel)
+            cb = fig.colorbar(hb, ax=ax)
+            cb.set_label('PWV')
+            plt.grid(True)
+            ax.grid(color='white')
+            #plt.show()
+            outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.%s.nightly-k.png"""% (dmag, epoch)
+            fig.savefig(outputFile)
+            plt.close()
+
+
+            # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
+            x=df['mjd']
+            y=df['res']
+            xmin = df.mjd.min()
+            xmax = df.mjd.max()
+            ymin = -3.0*df.res.std()
+            ymax =  3.0*df.res.std()
+            #ymin = -0.1
+            #ymax = 0.1
+            fig, axs = plt.subplots(ncols=1)
+            ax=axs
+            hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+            ax.axis([xmin, xmax, ymin, ymax])
+            ax.set_title("HIP117452")
+            ax.set_xlabel("MJD")
+            ylabel="""%sres"""  % (dmag)
+            ax.set_ylabel(ylabel)
+            cb = fig.colorbar(hb, ax=ax)
+            cb.set_label('log10(N)')
+            plt.grid(True)
+            ax.grid(color='white')
+            #plt.show()
+            outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.%s.nightly-k.png"""% (dmag, epoch)
+            fig.savefig(outputFile)
+            plt.close()
+    
+    
+            # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
+            x=df['mjd']
+            y=df['res']
+            z=df['pwv']
+            xmin = df.mjd.min()
+            xmax = df.mjd.max()
+            ymin = -3.0*df.res.std()
+            ymax =  3.0*df.res.std()
+            #ymin = -0.1
+            #ymax = 0.1
+            fig, axs = plt.subplots(ncols=1)
+            ax=axs
+            hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+            ax.axis([xmin, xmax, ymin, ymax])
+            ax.set_title("HIP117452")
+            ax.set_xlabel("MJD")
+            ylabel="""%sres"""  % (dmag)
+            ax.set_ylabel(ylabel)
+            cb = fig.colorbar(hb, ax=ax)
+            cb.set_label('PWV')
+            plt.grid(True)
+            ax.grid(color='white')
+            #plt.show()
+            outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.%s.nightly-k.png"""% (dmag, epoch)
+            fig.savefig(outputFile)
+            plt.close()
+
+            outputFile = """Temp/df_%sres.HIP117452.%s.nightly-k.csv""" % (dmag, epoch)
+            df.to_csv(outputFile, index=False)    
+
+        # endfor
+
+        
+        # Now we work on dmag4...
+        dmag = 'dmag4'
+        print dmag
+
+        df = df_orig_clean.copy()
+        
+        # Create initial (and generous)  mask, ESPECIALLY FOR mag4...
+        mask = ( ( df['airmass'] < 10.0 ) & ( df['pwv'] < 8.0 ) )
+
+        # Sigma-clipping parameters...
+        nsigma = 3.0
+        niter = 3
+
+        for i in range(niter):
+
+            iiter = i + 1
+            print """   iter%d...""" % ( iiter )
+
+            # make a copy of original df, and then delete the old one...
+            df = df[mask].copy()
+            #del df
+
+            p,rms = aTmCamTestFit4(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
+            df.loc[:,'res'] = residuals4(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
+
             stddev = df['res'].std()
             mask = (np.abs(df.res)< nsigma*stddev)
     
             ax=df.plot('mjd','res', grid=True, kind='scatter')
             #plt.plot(df.mjd,p(df.mjd),'m-')
             fig = ax.get_figure()
-            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit-nightly-k_iter%d.png""" % (dmag, iiter)
+            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
             fig.savefig(outputFile)
             plt.close()
 
             ax=df.plot('airmass','res', grid=True, kind='scatter')
             #plt.plot(df.mjd,p(df.mjd),'m-')
             fig = ax.get_figure()
-            outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit-nightly-k_iter%d.png""" % (dmag, iiter)
+            outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+            ax=df.plot('pwv','res', grid=True, kind='scatter')
+            #plt.plot(df.mjd,p(df.mjd),'m-')
+            fig = ax.get_figure()
+            outputFile = """./Temp/%sres_vs_pwv_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
             fig.savefig(outputFile)
             plt.close()
 
             ax=df['res'].hist(grid=True, bins=100)
             fig = ax.get_figure()
-            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit-nightly-k_reshist_iter%d.png""" % (dmag, iiter)
+            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist_%s_iter%d.png""" % (dmag, epoch, iiter)
             fig.savefig(outputFile)
             plt.close()
 
+        # endfor
     
         # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
         x=df['airmass']
@@ -810,7 +1012,7 @@ def main():
         plt.grid(True)
         ax.grid(color='white')
         #plt.show()
-        outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.nightly-k.png""" % (dmag)
+        outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.%s.png""" % (dmag, epoch)
         fig.savefig(outputFile)
         plt.close()
     
@@ -838,7 +1040,7 @@ def main():
         plt.grid(True)
         ax.grid(color='white')
         #plt.show()
-        outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.nightly-k.png"""% (dmag)
+        outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.%s.png"""% (dmag, epoch)
         fig.savefig(outputFile)
         plt.close()
 
@@ -865,7 +1067,7 @@ def main():
         plt.grid(True)
         ax.grid(color='white')
         #plt.show()
-        outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.nightly-k.png"""% (dmag)
+        outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.%s.png"""% (dmag, epoch)
         fig.savefig(outputFile)
         plt.close()
     
@@ -893,459 +1095,269 @@ def main():
         plt.grid(True)
         ax.grid(color='white')
         #plt.show()
-        outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.nightly-k.png"""% (dmag)
+        outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.%s.png"""% (dmag, epoch)
         fig.savefig(outputFile)
         plt.close()
 
-        outputFile = """Temp/df_%sres.nightly-k.csv""" % (dmag)
+
+        # Let's plot a 2D histogram of log(Nobs), binned by dmagres and pwv, for HIP117452...
+        x=df['pwv']
+        y=df['res']
+        xmin = df.pwv.min()
+        xmax = df.pwv.max()
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("PWV")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('log10(N)')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.%s.png""" % (dmag, epoch)
+        fig.savefig(outputFile)
+        plt.close()
+
+        outputFile = """Temp/df_%sres.HIP117452.%s.csv""" % (dmag, epoch)
         df.to_csv(outputFile, index=False)    
 
+        # Now we work on dmag4-dmag3...
+        dmag = 'dmag43'
+        print dmag
 
-        
-    # Now we work on dmag4...
-    dmag = 'dmag4'
-    print dmag
-
-    df = df_orig_clean.copy()
-        
-    # Create initial (and generous)  mask, ESPECIALLY FOR mag4...
-    mask = ( ( df['airmass'] < 10.0 ) & ( df['pwv'] < 8.0 ) )
-
-    # Sigma-clipping parameters...
-    nsigma = 3.0
-    niter = 3
-
-    for i in range(niter):
-
-        iiter = i + 1
-        print """   iter%d...""" % ( iiter )
-
-        # make a copy of original df, and then delete the old one...
-        df = df[mask].copy()
-        #del df
-
-        p,rms = aTmCamTestFit4(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
-        df.loc[:,'res'] = residuals4(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
-
-        stddev = df['res'].std()
-        mask = (np.abs(df.res)< nsigma*stddev)
+        df = df_orig_clean.copy()
+        df['dmag43'] = df['dmag4']-df['dmag3']
     
-        ax=df.plot('mjd','res', grid=True, kind='scatter')
-        #plt.plot(df.mjd,p(df.mjd),'m-')
-        fig = ax.get_figure()
-        outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
+        # Create initial (and generous)  mask, ESPECIALLY FOR mag4...
+        mask = ( ( df['airmass'] < 10.0 ) & ( df['pwv'] < 8.0 ) )
+
+        # Sigma-clipping parameters...
+        nsigma = 3.0
+        niter = 3
+
+        for i in range(niter):
+
+            iiter = i + 1
+            print """   iter%d...""" % ( iiter )
+
+            # make a copy of original df, and then delete the old one...
+            df = df[mask].copy()
+            #del df
+
+            p,rms = aTmCamTestFit43(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
+            df.loc[:,'res'] = residuals43(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
+
+            stddev = df['res'].std()
+            mask = (np.abs(df.res)< nsigma*stddev)
+    
+            ax=df.plot('mjd','res', grid=True, kind='scatter')
+            #plt.plot(df.mjd,p(df.mjd),'m-')
+            fig = ax.get_figure()
+            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+            ax=df.plot('airmass','res', grid=True, kind='scatter')
+            #plt.plot(df.mjd,p(df.mjd),'m-')
+            fig = ax.get_figure()
+            outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+            ax=df.plot('pwv','res', grid=True, kind='scatter')
+            #plt.plot(df.mjd,p(df.mjd),'m-')
+            fig = ax.get_figure()
+            outputFile = """./Temp/%sres_vs_pwv_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+            ax=df['res'].hist(grid=True, bins=100)
+            fig = ax.get_figure()
+            outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist_%s_iter%d.png""" % (dmag, epoch, iiter)
+            fig.savefig(outputFile)
+            plt.close()
+
+        # endfor
+    
+        # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
+        x=df['airmass']
+        y=df['res']
+        xmin = 1.0
+        xmax = 3.25
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        #ymin = -1.0*df.res.std()
+        #ymax = df.res.std()
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("airmass")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('log10(N)')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.%s.png""" % (dmag, epoch)
+        fig.savefig(outputFile)
+        plt.close()
+    
+    
+        # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
+        x=df['airmass']
+        y=df['res']
+        z=df['pwv']
+        xmin = 1.0
+        xmax = 3.25
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("airmass")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('PWV')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.%s.png"""% (dmag, epoch)
         fig.savefig(outputFile)
         plt.close()
 
-        ax=df.plot('airmass','res', grid=True, kind='scatter')
-        #plt.plot(df.mjd,p(df.mjd),'m-')
-        fig = ax.get_figure()
-        outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
+
+        # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
+        x=df['mjd']
+        y=df['res']
+        xmin = df.mjd.min()
+        xmax = df.mjd.max()
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("MJD")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('log10(N)')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.%s.png"""% (dmag, epoch)
+        fig.savefig(outputFile)
+        plt.close()
+    
+    
+        # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
+        x=df['mjd']
+        y=df['res']
+        z=df['pwv']
+        xmin = df.mjd.min()
+        xmax = df.mjd.max()
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("MJD")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('PWV')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.%s.png"""% (dmag, epoch)
         fig.savefig(outputFile)
         plt.close()
 
-        ax=df.plot('pwv','res', grid=True, kind='scatter')
-        #plt.plot(df.mjd,p(df.mjd),'m-')
-        fig = ax.get_figure()
-        outputFile = """./Temp/%sres_vs_pwv_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
+
+        # Let's plot a 2D histogram of airmass, binned by dmagres and mjd, for HIP117452...
+        x=df['mjd']
+        y=df['res']
+        z=df['airmass']
+        xmin = df.mjd.min()
+        xmax = df.mjd.max()
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("MJD")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('PWV')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_mjd_airmass.HIP117452.%s.png"""% (dmag, epoch)
         fig.savefig(outputFile)
         plt.close()
 
-        ax=df['res'].hist(grid=True, bins=100)
-        fig = ax.get_figure()
-        outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist_iter%d.png""" % (dmag, iiter)
+
+        # Let's plot a 2D histogram of log(Nobs), binned by dmagres and pwv, for HIP117452...
+        x=df['pwv']
+        y=df['res']
+        xmin = df.pwv.min()
+        xmax = df.pwv.max()
+        ymin = -3.0*df.res.std()
+        ymax =  3.0*df.res.std()
+        #ymin = -0.1
+        #ymax = 0.1
+        fig, axs = plt.subplots(ncols=1)
+        ax=axs
+        hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
+        ax.axis([xmin, xmax, ymin, ymax])
+        ax.set_title("HIP117452")
+        ax.set_xlabel("PWV")
+        ylabel="""%sres"""  % (dmag)
+        ax.set_ylabel(ylabel)
+        cb = fig.colorbar(hb, ax=ax)
+        cb.set_label('log10(N)')
+        plt.grid(True)
+        ax.grid(color='white')
+        #plt.show()
+        outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.%s.png"""% (dmag, epoch)
         fig.savefig(outputFile)
         plt.close()
-
     
-    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
-    x=df['airmass']
-    y=df['res']
-    xmin = 1.0
-    xmax = 3.25
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    #ymin = -1.0*df.res.std()
-    #ymax = df.res.std()
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("airmass")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('log10(N)')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.png""" % (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-    
-    
-    # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
-    x=df['airmass']
-    y=df['res']
-    z=df['pwv']
-    xmin = 1.0
-    xmax = 3.25
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("airmass")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('PWV')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.png"""% (dmag)
-    fig.savefig(outputFile)
-    plt.close()
+        outputFile = """Temp/df_%sres.HIP117452.%s.csv""" % (dmag, epoch)
+        df.to_csv(outputFile, index=False)    
 
+    # endfor(epochs)
 
-    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
-    x=df['mjd']
-    y=df['res']
-    xmin = df.mjd.min()
-    xmax = df.mjd.max()
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("MJD")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('log10(N)')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.png"""% (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-    
-    
-    # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
-    x=df['mjd']
-    y=df['res']
-    z=df['pwv']
-    xmin = df.mjd.min()
-    xmax = df.mjd.max()
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("MJD")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('PWV')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.png"""% (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-
-
-    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and pwv, for HIP117452...
-    x=df['pwv']
-    y=df['res']
-    xmin = df.pwv.min()
-    xmax = df.pwv.max()
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("PWV")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('log10(N)')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.png""" % (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-
-    outputFile = """Temp/df_%sres.csv""" % (dmag)
-    df.to_csv(outputFile, index=False)    
-
-    # Now we work on dmag4-dmag3...
-    dmag = 'dmag43'
-    print dmag
-
-    df = df_orig_clean.copy()
-    df['dmag43'] = df['dmag4']-df['dmag3']
-    
-    # Create initial (and generous)  mask, ESPECIALLY FOR mag4...
-    mask = ( ( df['airmass'] < 10.0 ) & ( df['pwv'] < 8.0 ) )
-
-    # Sigma-clipping parameters...
-    nsigma = 3.0
-    niter = 3
-
-    for i in range(niter):
-
-        iiter = i + 1
-        print """   iter%d...""" % ( iiter )
-
-        # make a copy of original df, and then delete the old one...
-        df = df[mask].copy()
-        #del df
-
-        p,rms = aTmCamTestFit43(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
-        df.loc[:,'res'] = residuals43(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
-
-        stddev = df['res'].std()
-        mask = (np.abs(df.res)< nsigma*stddev)
-    
-        ax=df.plot('mjd','res', grid=True, kind='scatter')
-        #plt.plot(df.mjd,p(df.mjd),'m-')
-        fig = ax.get_figure()
-        outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
-        fig.savefig(outputFile)
-        plt.close()
-
-        ax=df.plot('airmass','res', grid=True, kind='scatter')
-        #plt.plot(df.mjd,p(df.mjd),'m-')
-        fig = ax.get_figure()
-        outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
-        fig.savefig(outputFile)
-        plt.close()
-
-        ax=df.plot('pwv','res', grid=True, kind='scatter')
-        #plt.plot(df.mjd,p(df.mjd),'m-')
-        fig = ax.get_figure()
-        outputFile = """./Temp/%sres_vs_pwv_hip117542_mjdfit_iter%d.png""" % (dmag, iiter)
-        fig.savefig(outputFile)
-        plt.close()
-
-        ax=df['res'].hist(grid=True, bins=100)
-        fig = ax.get_figure()
-        outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist_iter%d.png""" % (dmag, iiter)
-        fig.savefig(outputFile)
-        plt.close()
-
-    
-    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
-    x=df['airmass']
-    y=df['res']
-    xmin = 1.0
-    xmax = 3.25
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    #ymin = -1.0*df.res.std()
-    #ymax = df.res.std()
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("airmass")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('log10(N)')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.png""" % (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-    
-    
-    # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
-    x=df['airmass']
-    y=df['res']
-    z=df['pwv']
-    xmin = 1.0
-    xmax = 3.25
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("airmass")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('PWV')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.png"""% (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-
-
-    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
-    x=df['mjd']
-    y=df['res']
-    xmin = df.mjd.min()
-    xmax = df.mjd.max()
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("MJD")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('log10(N)')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.png"""% (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-    
-    
-    # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
-    x=df['mjd']
-    y=df['res']
-    z=df['pwv']
-    xmin = df.mjd.min()
-    xmax = df.mjd.max()
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("MJD")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('PWV')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.png"""% (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-
-
-    # Let's plot a 2D histogram of airmass, binned by dmagres and mjd, for HIP117452...
-    x=df['mjd']
-    y=df['res']
-    z=df['airmass']
-    xmin = df.mjd.min()
-    xmax = df.mjd.max()
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, C=z, gridsize=100, cmap='rainbow', reduce_C_function=np.median)
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("MJD")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('PWV')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_mjd_airmass.HIP117452.png"""% (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-
-
-    # Let's plot a 2D histogram of log(Nobs), binned by dmagres and pwv, for HIP117452...
-    x=df['pwv']
-    y=df['res']
-    xmin = df.pwv.min()
-    xmax = df.pwv.max()
-    ymin = -3.0*df.res.std()
-    ymax =  3.0*df.res.std()
-    #ymin = -0.1
-    #ymax = 0.1
-    fig, axs = plt.subplots(ncols=1)
-    ax=axs
-    hb = ax.hexbin(x, y, gridsize=100, bins='log', cmap='inferno')
-    ax.axis([xmin, xmax, ymin, ymax])
-    ax.set_title("HIP117452")
-    ax.set_xlabel("PWV")
-    ylabel="""%sres"""  % (dmag)
-    ax.set_ylabel(ylabel)
-    cb = fig.colorbar(hb, ax=ax)
-    cb.set_label('log10(N)')
-    plt.grid(True)
-    ax.grid(color='white')
-    #plt.show()
-    outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.png"""% (dmag)
-    fig.savefig(outputFile)
-    plt.close()
-    
-    outputFile = """Temp/df_%sres.csv""" % (dmag)
-    df.to_csv(outputFile, index=False)    
-
-
-    ## Extract the series...
-    #dmjd_series = df['mjd'] - df.mjd.min()
-    #airmass_series = df['airmass']
-    #dmag_series = df['dmag3']
-    #
-    ## Convert to numpy arrays.
-    #dmjd_array = dmjd_series.values
-    #airmass_array = airmass_series.values
-    #dmag_array = dmag_series.values
-    #
-    #p,rms = aTmCamTestFit(dmjd_array, airmass_array, dmag_array)
-    #
-    ## Recalculate the mask to sigma-clip the residuals...
-    #res=residuals(p,dmjd_array,airmass_array,dmag_array)
-    #mask = (abs(res) < nsigma*rms)
-    #dmjd_array = dmjd_array[np.where(mask)]
-    #airmass_array = airmass_array[np.where(mask)]
-    #dmag_array = dmag_array[np.where(mask)]
-
-        
     print """That's all, folks!"""
 
     return 0
