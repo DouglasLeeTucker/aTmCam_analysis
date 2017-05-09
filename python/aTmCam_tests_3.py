@@ -127,14 +127,16 @@ def main():
         # Let's plot dmag vs. MJD for 'HIP117542' for all 3 years...
         ax = magobsdf[(magobsdf.object=='HIP117452')].plot('mjd',dmag, grid=True, ylim=[-0.5,5.0])
         fig = ax.get_figure()
-        outputFile = """./Temp/%s_vs_mjd_hip117542.png""" % (dmag)
+        #outputFile = """./Temp/%s_vs_mjd_hip117542.png""" % (dmag)
+        outputFile = createOutputFileName('Temp',dmag,'dmag_vs_mjd','rawdata','HIP117542',None,None,'png')
         fig.savefig(outputFile)
         plt.close()
     
         # Let's plot dmag vs. MJD of the 3 main Hipparcos in one plot...
         ax = magobsdf[((magobsdf.object=='HIP42334') | (magobsdf.object=='HIP75501') | (magobsdf.object=='HIP117452'))].plot('mjd',dmag, grid=True, ylim=[-0.5,5.0])
         fig = ax.get_figure()
-        outputFile = """./Temp/%s_vs_mjd_hipbig3.png""" % (dmag)
+        #outputFile = """./Temp/%s_vs_mjd_hipbig3.png""" % (dmag)
+        outputFile = createOutputFileName('Temp',dmag,'dmag_vs_mjd','rawdata','big3',None,None,'png')
         fig.savefig(outputFile)
         plt.close()
         
@@ -142,14 +144,16 @@ def main():
         x=magobsdf[(magobsdf.object=='HIP117452')]['airmass']
         y=magobsdf[(magobsdf.object=='HIP117452')][dmag]
         title = 'HIP117452'
-        outputFile = """./Temp/%s_vs_airmass_logN.HIP117452.png""" % (dmag)
+        #outputFile = """./Temp/%s_vs_airmass_logN.HIP117452.png""" % (dmag)
+        outputFile = createOutputFileName('Temp',dmag,'dmag_vs_airmass_logN','rawdata','HIP117542',None,None,'png')
         aTmCam2DHistDensPlot(x,y,1.0,3.25,-0.3,0.8,title,'airmass',dmag,'log10(N)',outputFile)
         
         # Let's plot a 2D histogram of log(Nobs), binned by dmag and airmass, for the Big 3...
         x=magobsdf[((magobsdf.object=='HIP42334') | (magobsdf.object=='HIP75501') | (magobsdf.object=='HIP117452'))]['airmass']
         y=magobsdf[((magobsdf.object=='HIP42334') | (magobsdf.object=='HIP75501') | (magobsdf.object=='HIP117452'))][dmag]
         title = 'HIP117452, HIP75501, and HIP42334 (The Big 3)'
-        outputFile = """./Temp/%s_vs_airmass_logN.big3.png""" % (dmag)
+        #outputFile = """./Temp/%s_vs_airmass_logN.big3.png""" % (dmag)
+        outputFile = createOutputFileName('Temp',dmag,'dmag_vs_airmass_logN','rawdata','big3',None,None,'png')
         aTmCam2DHistDensPlot(x,y,1.0,3.25,-0.3,0.8,title,'airmass',dmag,'log10(N)',outputFile)
 
         # Let's plot a 2D histogram of log(Nobs), binned by "dmag-dmag3" and airmass, for HIP117452...
@@ -161,7 +165,9 @@ def main():
         y=y1-y2
         title = 'HIP117452'
         ylabel="""%s-dmag3""" % (dmag)
-        outputFile = """./Temp/%s3_vs_airmass_logN.HIP117452.png""" % (dmag)
+        dmaglabel="""%s3""" % (dmag)
+        #outputFile = """./Temp/%s3_vs_airmass_logN.HIP117452.png""" % (dmag)
+        outputFile = createOutputFileName('Temp',dmaglabel,'dmag_vs_airmass_logN','rawdata','HIP117542',None,None,'png')
         aTmCam2DHistDensPlot(x,y,1.0,3.25,-0.3,0.8,title,'airmass',ylabel,'log10(N)',outputFile)
 
         # Let's plot a 2D histogram of log(Nobs), binned by "dmag-dmag3" and airmass, for the Big 3...
@@ -174,7 +180,9 @@ def main():
         y=y1-y2        
         title = 'HIP117452, HIP75501, and HIP42334 (The Big 3)'
         ylabel="""%s-dmag3""" % (dmag)
-        outputFile = """./Temp/%s3_vs_airmass_logN.big3.png""" % (dmag)
+        dmaglabel="""%s3""" % (dmag)
+        #outputFile = """./Temp/%s3_vs_airmass_logN.big3.png""" % (dmag)
+        outputFile = createOutputFileName('Temp',dmaglabel,'dmag_vs_airmass_logN','rawdata','big3',None,None,'png')
         aTmCam2DHistDensPlot(x,y,1.0,3.25,-0.3,0.8,title,'airmass',ylabel,'log10(N)',outputFile)
 
     # endfor
@@ -201,7 +209,8 @@ def main():
     # Plot the GPSmon PWV vs. MJD...
     ax = clean_gpsdf.plot('MJD','PWV', grid=True, ylim=[-5,25.0])
     fig = ax.get_figure()
-    outputFile = "./Temp/gps_pwv_vs_mjd.png"
+    #outputFile = "./Temp/gps_pwv_vs_mjd.png"
+    outputFile = createOutputFileName('Temp',None,'gps_pwv_vs_mjd',None,None,None,None,'png')
     fig.savefig(outputFile)
     plt.close()
 
@@ -234,7 +243,8 @@ def main():
     x=magobsdf_new[(magobsdf_new.object=='HIP117452')].pwv
     y=magobsdf_new[(magobsdf_new.object=='HIP117452')].dmag4
     title = 'HIP117452'
-    outputFile = "./Temp/dmag4_vs_pwv_logN.HIP117452.png"
+    #outputFile = "./Temp/dmag4_vs_pwv_logN.HIP117452.png"
+    outputFile = createOutputFileName('Temp','dmag4','dmag_vs_pwv_logN','rawdata','HIP117542',None,None,'png')
     aTmCam2DHistDensPlot(x,y,0.0,12.0,-0.3,0.8,title,'PWV','dmag4','log10(N)',outputFile)
 
     # If we plot dmag4-dmag3, we can remove the effects of clouds and other "gray" throughput variations...
@@ -243,7 +253,8 @@ def main():
     y2=magobsdf_new[(magobsdf_new.object=='HIP117452')].dmag3
     y=y1-y2
     title = 'HIP117452'
-    outputFile = "./Temp/dmag43_vs_pwv_logN.HIP117452.png"
+    #outputFile = "./Temp/dmag43_vs_pwv_logN.HIP117452.png"
+    outputFile = createOutputFileName('Temp','dmag43','dmag_vs_pwv_logN','rawdata','HIP117542',None,None,'png')
     aTmCam2DHistDensPlot(x,y,0.0,12.0,-0.3,0.8,title,'PWV','dmag4-dmag3','log10(N)',outputFile)
 
     # This is like the original delta_mag4 vs. airmass plot, but now color-coded by PWV...
@@ -251,7 +262,8 @@ def main():
     y=magobsdf_new[(magobsdf_new.object=='HIP117452')].dmag4
     z=magobsdf_new[(magobsdf_new.object=='HIP117452')].pwv
     title = 'HIP117452'
-    outputFile = "./Temp/dmag4_vs_airmass_pwv.HIP117452.png"
+    #outputFile = "./Temp/dmag4_vs_airmass_pwv.HIP117452.png"
+    outputFile = createOutputFileName('Temp','dmag4','dmag_vs_airmass_pwv','rawdata','HIP117542',None,None,'png')
     aTmCam2DHistXYZPlot(x,y,z,1.0,3.25,-0.3,0.8,title,'airmass','dmag4','PWV',outputFile)
     
     # Same as above, but now dmag4-dmag3 vs. airmass, color-coded by PWV...
@@ -261,15 +273,17 @@ def main():
     y=y1-y2
     z=magobsdf_new[(magobsdf_new.object=='HIP117452')].pwv
     title = 'HIP117452'
-    outputFile = "./Temp/dmag43_vs_airmass_pwv.HIP117452.png"
+    #outputFile = "./Temp/dmag43_vs_airmass_pwv.HIP117452.png"
+    outputFile = createOutputFileName('Temp','dmag43','dmag_vs_airmass_pwv','rawdata','HIP117542',None,None,'png')
     aTmCam2DHistXYZPlot(x,y,z,1.0,3.25,-0.8,0.8,title,'airmass','dmag4-dmag3','PWV',outputFile)
 
     # Let's switch things around a bit, plotting dmag4 vs. PWV and color-coding by airmass...
-    z=magobsdf_new[(magobsdf_new.object=='HIP117452')].airmass
-    y=magobsdf_new[(magobsdf_new.object=='HIP117452')].dmag4
     x=magobsdf_new[(magobsdf_new.object=='HIP117452')].pwv
+    y=magobsdf_new[(magobsdf_new.object=='HIP117452')].dmag4
+    z=magobsdf_new[(magobsdf_new.object=='HIP117452')].airmass
     title = 'HIP117452'
-    outputFile = "./Temp/dmag4_vs_pwv_airmass.HIP117452.png"
+    #outputFile = "./Temp/dmag4_vs_pwv_airmass.HIP117452.png"
+    outputFile = createOutputFileName('Temp','dmag4','dmag_vs_pwv_airmass','rawdata','HIP117542',None,None,'png')
     aTmCam2DHistXYZPlot(x,y,z,0.0,12.0,-0.3,0.8,title,'PWV','dmag4','airmass',outputFile)
 
     # Same as two figures above, but switching PWV and airmass axes...
@@ -279,7 +293,8 @@ def main():
     y=y1-y2
     z=magobsdf_new[(magobsdf_new.object=='HIP117452')].airmass
     title = 'HIP117452'
-    outputFile = "./Temp/dmag43_vs_pwv_airmass.HIP117452.png"
+    #outputFile = "./Temp/dmag43_vs_pwv_airmass.HIP117452.png"
+    outputFile = createOutputFileName('Temp','dmag43','dmag_vs_pwv_airmass','rawdata','HIP117542',None,None,'png')
     aTmCam2DHistXYZPlot(x,y,z,0.0,12.0,-0.8,0.8,title,'PWV','dmag4-dmag3','airmass',outputFile)
 
     #magobsdf_new.to_csv('/Users/dtucker/Desktop/magobsdf_new.csv', index=False)
@@ -408,9 +423,50 @@ def main():
                 df = df[mask].copy()
                 #del df
 
-                p,rms = aTmCamTestFit(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,dmag])
-                df.loc[:,'res'] = residuals(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,dmag])
+                # Update/create nightIndex column...
+                # If there is a pre-existing nightIndex column in df, delete it...
+                if 'nightIndex' in df.columns:
+                    df.drop('nightIndex', axis=1, inplace=True)
+                # Create nightIndex column for df...
+                # To make compatible with the nightly-k fit,
+                #  we fake a nightArray containing a single entry of 0
+                #  and set df['nightIndex'] to 0 for all rows...
+                nightArray = np.zeros((1,), dtype=np.int)
+                nightDF = pd.DataFrame(nightArray, columns=['imjd'])
+                nightDF['nightIndex'] = nightDF.index
+                df['nightIndex'] = 0
 
+                #outCorrFile = """./Temp/%s_corrmatrix_hip117542_mjdfit_%s_iter%d.fits""" % (dmag, epoch, iiter)
+                outCorrFile = createOutputFileName('Temp',dmag,'corrmatrix','mjdfit','HIP117542',epoch,iiter,'fits')
+                p,perr,pname,rms = aTmCamTestFit(df, nightDF, dmag, outCorrFile)
+                df.loc[:,'res'] = residuals(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
+
+                # Output parameter fits
+                mjd0Array = len(nightArray)*[mjd0]
+                a0Array = len(nightArray)*[p[0]]
+                a0errArray = len(nightArray)*[perr[0]]
+                a1Array = len(nightArray)*[p[1]]
+                a1errArray = len(nightArray)*[perr[1]]
+                rmsArray = len(nightArray)*[rms]
+                resultsDF = pd.DataFrame(
+                    {'imjd': nightArray,
+                     'a0': a0Array,
+                     'a0_err': a0errArray,
+                     'a1': a1Array, 
+                     'a1_err': a1errArray,
+                     'mjd0' : mjd0Array, 
+                     'pname': pname[2:],
+                     'k': p[2:],
+                     'k_err': perr[2:],
+                     'rms': rmsArray
+                    })
+                # Re-order columns:
+                resultsDF = resultsDF[['imjd','mjd0','a0','a0_err','a1','a1_err','k','k_err','rms','pname']]
+                # Actual output...
+                #outputFile = """./Temp/%s_results_hip117542_mjdfit_%s_iter%d.csv""" % (dmag, epoch, iiter)
+                outputFile = createOutputFileName('Temp',dmag,'results','mjdfit','HIP117542',epoch,iiter,'csv')
+                resultsDF.to_csv(outputFile,index=False)
+            
                 stddev = df['res'].std()
                 mask = (np.abs(df.res)< nsigma*stddev)
 
@@ -461,9 +517,10 @@ def main():
                 nightDF['nightIndex'] = nightDF.index
                 df = pd.merge(df, nightDF, on='imjd', how='inner')
 
-                outCorrFile = """./Temp/%s_corrmatrix_hip117542_mjdfit-nightly-k_%s_iter%d.fits""" % (dmag, epoch, iiter)
-                p,perr,pname,rms = aTmCamTestFitNightlyK(df, nightDF, dmag, outCorrFile)
-                df.loc[:,'res'] = residualsNightlyK(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
+                #outCorrFile = """./Temp/%s_corrmatrix_hip117542_mjdfit-nightly-k_%s_iter%d.fits""" % (dmag, epoch, iiter)
+                outCorrFile = createOutputFileName('Temp',dmag,'corrmatrix','mjdfit-nightly-k','HIP117542',epoch,iiter,'fits')
+                p,perr,pname,rms = aTmCamTestFit(df, nightDF, dmag, outCorrFile)
+                df.loc[:,'res'] = residuals(p,df.loc[:,'dmjd'],df.loc[:,'nightIndex'],df.loc[:,'airmass'],df.loc[:,dmag])
 
                 # Output parameter fits
                 mjd0Array = len(nightArray)*[mjd0]
@@ -487,7 +544,8 @@ def main():
                 # Re-order columns:
                 resultsDF = resultsDF[['imjd','mjd0','a0','a0_err','a1','a1_err','k','k_err','rms','pname']]
                 # Actual output...
-                outputFile = """./Temp/%s_results_hip117542_mjdfit-nightly-k_%s_iter%d.csv""" % (dmag, epoch, iiter)
+                #outputFile = """./Temp/%s_results_hip117542_mjdfit-nightly-k_%s_iter%d.csv""" % (dmag, epoch, iiter)
+                outputFile = createOutputFileName('Temp',dmag,'results','mjdfit-nightly-k','HIP117542',epoch,iiter,'csv')
                 resultsDF.to_csv(outputFile,index=False)
             
                 stddev = df['res'].std()
@@ -499,7 +557,7 @@ def main():
             # endfor
 
             # Create 2D histogram QA plots and output a CSV file of residuals...
-            status = aTmCam2DHistQA(df, dmag, epoch, '.nightly-k')
+            status = aTmCam2DHistQA(df, dmag, epoch, '-nightly-k')
 
         # endfor
 
@@ -585,42 +643,57 @@ def main():
     return 0
     
 
-
 #--------------------------------------------------------------------------
 # Parametric function:  
 #  p is the parameter vector; 
-def fp(p,dmjd_array,airmass_array):
-    return p[0] + p[1]*dmjd_array + p[2]*airmass_array
+def fp(p,dmjd_array,night_index_array,airmass_array):
+    return p[0] + p[1]*dmjd_array + p[2+night_index_array]*airmass_array
 
 #--------------------------------------------------------------------------
 # Error function:
-def residuals(p,dmjd_array,airmass_array,dmag_array):
-    err = (dmag_array-fp(p,dmjd_array,airmass_array))
+def residuals(p,dmjd_array,night_index_array,airmass_array,dmag_array):
+    err = (dmag_array-fp(p,dmjd_array,night_index_array,airmass_array))
     return err
 
 #--------------------------------------------------------------------------
 # Fitting code:
-def aTmCamTestFit(dmjd_array, airmass_array, dmag_array):
+def aTmCamTestFit(df, nightDF, dmag, outCorrFile=None):
 
+    # Only need astropy.io.fits if we are outputting an outCorrFile...
+    if outCorrFile is not None:
+        from astropy.io import fits
+    
+
+    # Extract arrays needed later...
+    # (dmjd_array, night_index_array, airmass_array, dmag_array
+    dmjd_array = df.loc[:,'dmjd']
+    night_index_array = df.loc[:,'nightIndex']
+    airmass_array = df.loc[:,'airmass']
+    dmag_array = df.loc[:,dmag]
+
+    
     # Calculate the median of dmag for use as an initial guess
     # for the overall zeropoint offset..
     mdn = np.median( dmag_array, None )
 
-    # Parameter names
-    pname = (['a_0', 'a_1', 'k'])
 
-    # Initial parameter values
-    p0 = [mdn, 0.0, 0.0]
+    # Set the parameter names and the initial parameter values...
+    pname = (['a_0', 'a_1'])
+    p0 = [mdn, 0.0]
+    for ii in range(nightDF.imjd.size):
+        # For global-k solutions, imjd is just "0".
+        kname = 'k_'+str(nightDF.loc[ii, 'imjd'])
+        #kname = 'k_'+str(nightDF.loc[ii, 'nightIndex'])
+        pname.append(kname)
+        p0.append(0.)
 
     print 
     print 'Initial parameter values:  ', p0
 
-    #print fp(p0,dmjd_array,airmass_array)
-    #print residuals(p0,dmjd_array,airmass_array,dmag_array)
 
     # Perform fit
 
-    p,cov,infodict,mesg,ier = leastsq(residuals, p0, args=(dmjd_array, airmass_array, dmag_array), maxfev=10000, full_output=1)
+    p,cov,infodict,mesg,ier = leastsq(residuals, p0, args=(dmjd_array, night_index_array, airmass_array, dmag_array), maxfev=10000, full_output=1)
 
     if ( ier>=1 and ier <=4):
         print "Converged"
@@ -647,17 +720,21 @@ def aTmCamTestFit(dmjd_array, airmass_array, dmag_array):
     # for non unit values of the reduced chisq.
     # values at min match gnuplot
     print "Fitted parameters at minimum, with 68% C.I.:"
+    perr = []
     for i,pmin in enumerate(p):
         print "%-10s %13g +/- %13g   (%5f percent)" % (pname[i],pmin,math.sqrt(cov[i,i])*math.sqrt(chisq/dof),100.*math.sqrt(cov[i,i])*math.sqrt(chisq/dof)/abs(pmin))
+        perr.append(math.sqrt(cov[i,i])*math.sqrt(chisq/dof))
     print
 
 
-    print "Correlation matrix:"
+    print "Correlation matrix (up to first 10 parameters in parameter list):"
+    nsize1 = min(len(pname), 10)
+    nsize2 = min(len(p), 10)
     # correlation matrix close to gnuplot
     print "               ",
-    for i in range(len(pname)): print "%-10s" % (pname[i],),
+    for i in range(nsize1): print "%-10s" % (pname[i],),
     print
-    for i in range(len(p)):
+    for i in range(nsize2):
         print "%-10s" % pname[i],
         for j in range(i+1):
 	    print "%10f" % (cov[i,j]/math.sqrt(cov[i,i]*cov[j,j]),),
@@ -665,11 +742,25 @@ def aTmCamTestFit(dmjd_array, airmass_array, dmag_array):
         print
     #endfor
 
+    if outCorrFile is not None:
+        # Create a numpy array "corr" with the same shape as the numpy array "cov",
+        #  update all its entries with the values of the correlation matrix, and
+        #  write the result to a FITS image...
+        corr = np.copy(cov)
+        for i in range(len(p)):
+            for j in range(len(p)):
+	        corr[i,j] = cov[i,j]/math.sqrt(cov[i,i]*cov[j,j])
+            # endfor
+        # endfor
+        hdu = fits.PrimaryHDU(corr)
+        hdu.writeto(outCorrFile,clobber=True)
+    
     print
     print
     print
     
-    return p, rms
+    return p, perr, pname, rms
+
 
 #--------------------------------------------------------------------------
 # Parametric function:  
@@ -786,124 +877,6 @@ def aTmCamTestFitWithPWV(dmjd_array, airmass_array, pwv_array, dmag_array, fit_t
 
 
 #--------------------------------------------------------------------------
-# Parametric function:  
-#  p is the parameter vector; 
-def fpNightlyK(p,dmjd_array,night_index_array,airmass_array):
-    return p[0] + p[1]*dmjd_array + p[2+night_index_array]*airmass_array
-
-#--------------------------------------------------------------------------
-# Error function:
-def residualsNightlyK(p,dmjd_array,night_index_array,airmass_array,dmag_array):
-    err = (dmag_array-fpNightlyK(p,dmjd_array,night_index_array,airmass_array))
-    return err
-
-#--------------------------------------------------------------------------
-# Fitting code:
-def aTmCamTestFitNightlyK(df, nightDF, dmag, outCorrFile=None):
-
-    # Only need astropy.io.fits if we are outputting an outCorrFile...
-    if outCorrFile is not None:
-        from astropy.io import fits
-    
-
-    # Extract arrays needed later...
-    # (dmjd_array, night_index_array, airmass_array, dmag_array
-    dmjd_array = df.loc[:,'dmjd']
-    night_index_array = df.loc[:,'nightIndex']
-    airmass_array = df.loc[:,'airmass']
-    dmag_array = df.loc[:,dmag]
-
-    
-    # Calculate the median of dmag for use as an initial guess
-    # for the overall zeropoint offset..
-    mdn = np.median( dmag_array, None )
-
-
-    # Set the parameter names and the initial parameter values...
-    pname = (['a_0', 'a_1'])
-    p0 = [mdn, 0.0]
-    for ii in range(nightDF.imjd.size):
-        kname = 'k_'+str(nightDF.loc[ii, 'imjd'])
-        #kname = 'k_'+str(nightDF.loc[ii, 'nightIndex'])
-        pname.append(kname)
-        p0.append(0.)
-
-    print 
-    print 'Initial parameter values:  ', p0
-
-
-    # Perform fit
-
-    p,cov,infodict,mesg,ier = leastsq(residualsNightlyK, p0, args=(dmjd_array, night_index_array, airmass_array, dmag_array), maxfev=10000, full_output=1)
-
-    if ( ier>=1 and ier <=4):
-        print "Converged"
-    else:
-        print "Not converged"
-        print mesg
-
-
-    # Calculate some descriptors of the fit 
-    # (similar to the output from gnuplot 2d fits)
-
-    chisq=sum(infodict['fvec']*infodict['fvec'])
-    dof=len(dmag_array)-len(p)
-    rms=math.sqrt(chisq/dof)
-    
-    print "Converged with chi squared ",chisq
-    print "degrees of freedom, dof ", dof
-    print "RMS of residuals (i.e. sqrt(chisq/dof)) ", rms
-    print "Reduced chisq (i.e. variance of residuals) ", chisq/dof
-    print
-
-
-    # uncertainties are calculated as per gnuplot, "fixing" the result
-    # for non unit values of the reduced chisq.
-    # values at min match gnuplot
-    print "Fitted parameters at minimum, with 68% C.I.:"
-    perr = []
-    for i,pmin in enumerate(p):
-        print "%-10s %13g +/- %13g   (%5f percent)" % (pname[i],pmin,math.sqrt(cov[i,i])*math.sqrt(chisq/dof),100.*math.sqrt(cov[i,i])*math.sqrt(chisq/dof)/abs(pmin))
-        perr.append(math.sqrt(cov[i,i])*math.sqrt(chisq/dof))
-    print
-
-
-    print "Correlation matrix (up to first 10 parameters in parameter list):"
-    nsize1 = min(len(pname), 10)
-    nsize2 = min(len(p), 10)
-    # correlation matrix close to gnuplot
-    print "               ",
-    for i in range(nsize1): print "%-10s" % (pname[i],),
-    print
-    for i in range(nsize2):
-        print "%-10s" % pname[i],
-        for j in range(i+1):
-	    print "%10f" % (cov[i,j]/math.sqrt(cov[i,i]*cov[j,j]),),
-        #endfor
-        print
-    #endfor
-
-    if outCorrFile is not None:
-        # Create a numpy array "corr" with the same shape as the numpy array "cov",
-        #  update all its entries with the values of the correlation matrix, and
-        #  write the result to a FITS image...
-        corr = np.copy(cov)
-        for i in range(len(p)):
-            for j in range(len(p)):
-	        corr[i,j] = cov[i,j]/math.sqrt(cov[i,i]*cov[j,j])
-            # endfor
-        # endfor
-        hdu = fits.PrimaryHDU(corr)
-        hdu.writeto(outCorrFile,clobber=True)
-    
-    print
-    print
-    print
-    
-    return p, perr, pname, rms
-
-
-#--------------------------------------------------------------------------
 
 def aTmCamSimpleXYPlotWithFitLine(df,col_x,col_y,p,outputFile):
     
@@ -946,11 +919,13 @@ def aTmCamSimpleHistPlot(df,col,outputFile):
 def aTmCamCloudFitQA(df, p, epoch, iiter):
 
     # Plot dmag3 vs. MJD...
-    outputFile = """./Temp/dmag3_vs_mjd_hip117542_cloudcull_%s_iter%d.png""" % (epoch, iiter)
+    #outputFile = """./Temp/dmag3_vs_mjd_hip117542_cloudcull_%s_iter%d.png""" % (epoch, iiter)
+    outputFile = createOutputFileName('Temp','dmag3','res_vs_mjd','cloudcull','HIP117542',epoch,iiter,'png')
     status = aTmCamSimpleXYPlotWithFitLine(df,'mjd','dmag3',p,outputFile)
     
     # Plot histogram of dmag3 residuals...
-    outputFile = """./Temp/dmag3_vs_mjd_hip117542_cloudcull_reshist_%s_iter%d.png""" % (epoch, iiter)
+    #outputFile = """./Temp/dmag3_vs_mjd_hip117542_cloudcull_reshist_%s_iter%d.png""" % (epoch, iiter)
+    outputFile = createOutputFileName('Temp','dmag3','res_hist','cloudcull','HIP117542',epoch,iiter,'png')
     status = aTmCamSimpleHistPlot(df,'res',outputFile)
     
     return 0
@@ -960,20 +935,26 @@ def aTmCamCloudFitQA(df, p, epoch, iiter):
 
 def aTmCamDmagFitQA(df, dmag, epoch, iiter, extra_label=''):
 
+    source = """mjdfit%s""" % (extra_label)
+    
     # Plot residuals vs. MJD...
-    outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit%s_%s_iter%d.png""" % (dmag, extra_label, epoch, iiter)
+    #outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit%s_%s_iter%d.png""" % (dmag, extra_label, epoch, iiter)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_mjd',source,'HIP117542',epoch,iiter,'png')
     status = aTmCamSimpleXYPlot(df,'mjd','res',outputFile)
 
     # Plot residuals vs. airmass...
-    outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit%s_%s_iter%d.png""" % (dmag, extra_label, epoch, iiter)
+    #outputFile = """./Temp/%sres_vs_airmass_hip117542_mjdfit%s_%s_iter%d.png""" % (dmag, extra_label, epoch, iiter)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_airmass',source,'HIP117542',epoch,iiter,'png')
     status = aTmCamSimpleXYPlot(df,'airmass','res',outputFile)
     
     # Plot residuals vs. PWV (mostly needed by band4)...
-    outputFile = """./Temp/%sres_vs_pwv_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
+    #outputFile = """./Temp/%sres_vs_pwv_hip117542_mjdfit_%s_iter%d.png""" % (dmag, epoch, iiter)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_pwv',source,'HIP117542',epoch,iiter,'png')
     status = aTmCamSimpleXYPlot(df,'pwv','res',outputFile)
 
     # Plot histogram of dmag residuals...
-    outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist%s_%s_iter%d.png""" % (dmag, extra_label, epoch, iiter)
+    #outputFile = """./Temp/%sres_vs_mjd_hip117542_mjdfit_reshist%s_%s_iter%d.png""" % (dmag, extra_label, epoch, iiter)
+    outputFile = createOutputFileName('Temp',dmag,'res_hist',source,'HIP117542',epoch,iiter,'png')
     status = aTmCamSimpleHistPlot(df,'res',outputFile)
 
     return 0
@@ -1024,10 +1005,13 @@ def aTmCam2DHistXYZPlot(x,y,z,xmin,xmax,ymin,ymax,title,xlabel,ylabel,cblabel,ou
 
 def aTmCam2DHistQA(df, dmag, epoch, extra_label=''):
 
+    source = """mjdfit%s""" % (extra_label)
+    
     # Let's plot a 2D histogram of log(Nobs), binned by dmagres and airmass, for HIP117452...
     title = 'HIP117452'
     ylabel = """%sres"""  % (dmag)
-    outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.%s%s.png""" % (dmag, epoch, extra_label)
+    #outputFile = """./Temp/%sres_vs_airmass_logN.HIP117452.%s%s.png""" % (dmag, epoch, extra_label)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_airmass_logN',source,'HIP117542',epoch,None,'png')
     aTmCam2DHistDensPlot(df['airmass'],df['res'],
                          1.0,3.25,
                          -3.0*df.res.std(),3.0*df.res.std(),
@@ -1038,7 +1022,8 @@ def aTmCam2DHistQA(df, dmag, epoch, extra_label=''):
     # Let's plot a 2D histogram of PWV, binned by dmagres and airmass, for HIP117452...
     title = 'HIP117452'
     ylabel="""%sres"""  % (dmag)
-    outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    #outputFile = """./Temp/%sres_vs_airmass_pwv.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_airmass_pwv',source,'HIP117542',epoch,None,'png')
     aTmCam2DHistXYZPlot(df['airmass'],df['res'],df['pwv'],
                         1.0,3.25,
                         -3.0*df.res.std(),3.0*df.res.std(),
@@ -1049,7 +1034,8 @@ def aTmCam2DHistQA(df, dmag, epoch, extra_label=''):
     # Let's plot a 2D histogram of log(Nobs), binned by dmagres and mjd, for HIP117452...
     title = 'HIP117452'
     ylabel = """%sres"""  % (dmag)
-    outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    #outputFile = """./Temp/%sres_vs_mjd_logN.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_mjd_logN',source,'HIP117542',epoch,None,'png')
     aTmCam2DHistDensPlot(df['mjd'],df['res'],
                          df.mjd.min(),df.mjd.max(),
                          -3.0*df.res.std(),3.0*df.res.std(),
@@ -1060,7 +1046,8 @@ def aTmCam2DHistQA(df, dmag, epoch, extra_label=''):
     # Let's plot a 2D histogram of PWV, binned by dmagres and mjd, for HIP117452...
     title = 'HIP117452'
     ylabel="""%sres"""  % (dmag)
-    outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    #outputFile = """./Temp/%sres_vs_mjd_pwv.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_mjd_pwv',source,'HIP117542',epoch,None,'png')
     aTmCam2DHistXYZPlot(df['mjd'],df['res'],df['pwv'],
                         df.mjd.min(),df.mjd.max(),
                         -3.0*df.res.std(),3.0*df.res.std(),
@@ -1071,7 +1058,8 @@ def aTmCam2DHistQA(df, dmag, epoch, extra_label=''):
     # Let's plot a 2D histogram of airmass, binned by dmagres and mjd, for HIP117452...
     title = 'HIP117452'
     ylabel="""%sres"""  % (dmag)
-    outputFile = """./Temp/%sres_vs_mjd_airmass.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    #outputFile = """./Temp/%sres_vs_mjd_airmass.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_mjd_airmass',source,'HIP117542',epoch,None,'png')
     aTmCam2DHistXYZPlot(df['mjd'],df['res'],df['airmass'],
                         df.mjd.min(),df.mjd.max(),
                         -3.0*df.res.std(),3.0*df.res.std(),
@@ -1082,7 +1070,8 @@ def aTmCam2DHistQA(df, dmag, epoch, extra_label=''):
     # Let's plot a 2D histogram of log(Nobs), binned by dmagres and pwv, for HIP117452...
     title = 'HIP117452'
     ylabel = """%sres"""  % (dmag)
-    outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    #outputFile = """./Temp/%sres_vs_pwv_logN.HIP117452.%s%s.png"""% (dmag, epoch, extra_label)
+    outputFile = createOutputFileName('Temp',dmag,'res_vs_pwv_logN',source,'HIP117542',epoch,None,'png')
     aTmCam2DHistDensPlot(df['pwv'],df['res'],
                          df.pwv.min(),df.pwv.max(),
                          -3.0*df.res.std(),3.0*df.res.std(),
@@ -1091,12 +1080,45 @@ def aTmCam2DHistQA(df, dmag, epoch, extra_label=''):
 
 
     # Output CSV file of residuals...
-    outputFile = """Temp/df_%sres.HIP117452.%s%s.csv""" % (dmag, epoch, extra_label)
+    #outputFile = """Temp/df_%sres.HIP117452.%s%s.csv""" % (dmag, epoch, extra_label)
+    outputFile = createOutputFileName('Temp',dmag,'df_res',source,'HIP117542',epoch,None,'csv')
     df.to_csv(outputFile, index=False)    
 
 
     return 0
 
+
+#--------------------------------------------------------------------------
+# Function to create standardized output filenames for this script...
+#  We want something like
+#     outputDirName/dmag.aspect.source.starName.epoch.iter{iiter}.png.
+#  If one or more of the values are set to None, skip it; e.g.,
+#     outputDirName/dmag.source.starName.png.
+#  All values are considered to be strings, execpt for the int "iiter".
+def createOutputFileName(outputDirName,dmag,aspect,source,starName,epoch,iiter,ext):
+
+    dmagOutputFile = ''
+    if dmag is not None:
+        dmagOutputFile = """%s.%s""" % (dmagOutputFile, dmag)
+    if aspect is not None:
+        dmagOutputFile= """%s.%s""" % (dmagOutputFile, aspect)
+    if source is not None:
+        dmagOutputFile= """%s.%s""" % (dmagOutputFile, source)
+    if starName is not None:
+        dmagOutputFile= """%s.%s""" % (dmagOutputFile, starName)
+    if epoch is not None:
+        dmagOutputFile= """%s.%s""" % (dmagOutputFile, epoch)
+    if iiter is not None:
+        dmagOutputFile= """%s.iter%d""" % (dmagOutputFile, iiter)
+    if ext is not None:
+        dmagOutputFile= """%s.%s""" % (dmagOutputFile, ext)
+
+    #Strip off leading "."...
+    dmagOutputFile=dmagOutputFile[1:]
+
+    dmagOutputFile = os.path.join(outputDirName, dmagOutputFile)
+
+    return dmagOutputFile
 
 #--------------------------------------------------------------------------
 
