@@ -526,8 +526,8 @@ def main():
             df = df[mask].copy()
             #del df
 
-            p,rms = aTmCamTestFit4(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
-            df.loc[:,'res'] = residuals4(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
+            p,rms = aTmCamTestFitWithPWV(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag],0)
+            df.loc[:,'res'] = residualsWithPWV(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag],0)
 
             stddev = df['res'].std()
             mask = (np.abs(df.res)< nsigma*stddev)
@@ -564,8 +564,8 @@ def main():
             df = df[mask].copy()
             #del df
 
-            p,rms = aTmCamTestFit43(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag])
-            df.loc[:,'res'] = residuals43(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag])
+            p,rms = aTmCamTestFitWithPWV(df.loc[:,'dmjd'], df.loc[:,'airmass'], df.loc[:,'pwv'], df.loc[:,dmag],1)
+            df.loc[:,'res'] = residualsWithPWV(p,df.loc[:,'dmjd'],df.loc[:,'airmass'],df.loc[:,'pwv'],df.loc[:,dmag],1)
 
             stddev = df['res'].std()
             mask = (np.abs(df.res)< nsigma*stddev)
@@ -673,39 +673,67 @@ def aTmCamTestFit(dmjd_array, airmass_array, dmag_array):
 
 #--------------------------------------------------------------------------
 # Parametric function:  
-#  p is the parameter vector; 
-def fp4(p,dmjd_array,airmass_array,pwv_array):
-    return p[0] + p[1]*dmjd_array + p[2]*np.power(airmass_array,0.6) + p[3]*pwv_array
+#  p is the parameter vector.
+# How to fit with PWV is still under development; hence, several fit_type options...
+def fpWithPWV(p,dmjd_array,airmass_array,pwv_array,fit_type):
+
+    if fit_type == 0:
+        return p[0] + p[1]*dmjd_array + p[2]*np.power(airmass_array,0.6) + p[3]*pwv_array
+    elif fit_type == 1:
+        return p[0] + p[1]*dmjd_array + p[2]*airmass_array + p[3]*pwv_array + p[4]*pwv_array**2
+    elif fit_type == 2:
+        return p[0] + 0.00*dmjd_array + p[1]*airmass_array + p[2]*pwv_array + p[3]*pwv_array**2
+    elif fit_type == 3:
+        return p[0] + 0.00*dmjd_array + p[1]*airmass_array + 0.00*pwv_array + p[2]*pwv_array*pwv_array
+    elif fit_type == 4:
+        return p[0] + 0.00*dmjd_array + p[1]*airmass_array + 0.00*pwv_array + p[2]*np.power(pwv_array,4.0)
+    else:
+        return p[0] + p[1]*dmjd_array + p[2]*np.power(airmass_array,0.6) + p[3]*pwv_array
+
 
 #--------------------------------------------------------------------------
 # Error function:
-def residuals4(p,dmjd_array,airmass_array,pwv_array,dmag_array):
-    err = (dmag_array-fp4(p,dmjd_array,airmass_array,pwv_array))
+# How to fit with PWV is still under development; hence, several fit_type options...
+def residualsWithPWV(p,dmjd_array,airmass_array,pwv_array,dmag_array,fit_type):
+    err = (dmag_array-fpWithPWV(p,dmjd_array,airmass_array,pwv_array,fit_type))
     return err
 
 #--------------------------------------------------------------------------
 # Fitting code:
-def aTmCamTestFit4(dmjd_array, airmass_array, pwv_array, dmag_array):
+# How to fit with PWV is still under development; hence, several fit_type options...
+def aTmCamTestFitWithPWV(dmjd_array, airmass_array, pwv_array, dmag_array, fit_type):
 
     # Calculate the median of dmag for use as an initial guess
     # for the overall zeropoint offset..
     mdn = np.median( dmag_array, None )
 
-    # Parameter names
-    pname = (['a_0', 'a_1', 'k_airmass', 'k_pwv'])
+    # Set parameter names and initial parameter values...
+    if fit_type == 0:
+        pname = (['a_0', 'a_1', 'k_airmass', 'k_pwv'])
+        p0 = [mdn, 0.0, 0.0, 0.0]
+    elif fit_type == 1:
+        pname = (['a_0', 'a_1', 'k_airmass', 'k1_pwv', 'k2_pwv'])
+        p0 = [mdn, 0.0, 0.0, 0.0, 0.0]
+    elif fit_type == 2:
+        pname = (['a_0', 'k_airmass', 'k1_pwv', 'k2_pwv'])
+        p0 = [mdn, 0.0, 0.0, 0.0]
+    elif fit_type == 3:
+        pname = (['a_0', 'k_airmass', 'k2_pwv'])
+        p0 = [mdn, 0.0, 0.0]
+    elif fit_type == 4:
+        pname = (['a_0', 'k_airmass', 'k4_pwv'])
+        p0 = [mdn, 0.0, 0.0]
+    else:
+        pname = (['a_0', 'a_1', 'k_airmass', 'k_pwv'])
+        p0 = [mdn, 0.0, 0.0, 0.0]
 
-    # Initial parameter values
-    p0 = [mdn, 0.0, 0.0, 0.0]
 
     print 
     print 'Initial parameter values:  ', p0
 
-    #print fp4(p0,dmjd_array,airmass_array,pwv_array)
-    #print residuals4(p0,dmjd_array,airmass_array,pwv_array,dmag_array)
 
     # Perform fit
-
-    p,cov,infodict,mesg,ier = leastsq(residuals4, p0, args=(dmjd_array, airmass_array, pwv_array, dmag_array), maxfev=10000, full_output=1)
+    p,cov,infodict,mesg,ier = leastsq(residualsWithPWV, p0, args=(dmjd_array, airmass_array, pwv_array, dmag_array, fit_type), maxfev=10000, full_output=1)
 
     if ( ier>=1 and ier <=4):
         print "Converged"
@@ -756,102 +784,6 @@ def aTmCamTestFit4(dmjd_array, airmass_array, pwv_array, dmag_array):
     
     return p, rms
 
-#--------------------------------------------------------------------------
-# Parametric function:  
-#  p is the parameter vector; 
-def fp43(p,dmjd_array,airmass_array,pwv_array):
-    #return p[0] + p[1]*dmjd_array + p[2]*np.power(airmass_array,0.6) + p[3]*pwv_array
-    return p[0] + p[1]*dmjd_array + p[2]*airmass_array + p[3]*pwv_array + p[4]*pwv_array**2
-    #return p[0] + 0.00*dmjd_array + p[1]*airmass_array + p[2]*pwv_array + p[3]*pwv_array**2
-    #return p[0] + 0.00*dmjd_array + p[1]*airmass_array + 0.00*pwv_array + p[2]*pwv_array*pwv_array
-    #return p[0] + 0.00*dmjd_array + p[1]*airmass_array + 0.00*pwv_array + p[2]*np.power(pwv_array,4.0)
-
-#--------------------------------------------------------------------------
-# Error function:
-def residuals43(p,dmjd_array,airmass_array,pwv_array,dmag_array):
-    err = (dmag_array-fp43(p,dmjd_array,airmass_array,pwv_array))
-    return err
-
-#--------------------------------------------------------------------------
-# Fitting code:
-def aTmCamTestFit43(dmjd_array, airmass_array, pwv_array, dmag_array):
-
-    # Calculate the median of dmag for use as an initial guess
-    # for the overall zeropoint offset..
-    mdn = np.median( dmag_array, None )
-
-    # Parameter names
-    #pname = (['a_0', 'a_1', 'k_airmass', 'k_pwv'])
-    pname = (['a_0', 'a_1', 'k_airmass', 'k1_pwv', 'k2_pwv'])
-    #pname = (['a_0', 'k_airmass', 'k1_pwv', 'k2_pwv'])
-    #pname = (['a_0', 'k_airmass', 'k2_pwv'])
-    #pname = (['a_0', 'k_airmass', 'k4_pwv'])
-
-    # Initial parameter values
-    #p0 = [mdn, 0.0, 0.0, 0.0]
-    p0 = [mdn, 0.0, 0.0, 0.0, 0.0]
-    #p0 = [mdn, 0.0, 0.0, 0.0]
-    #p0 = [mdn, 0.0, 0.0]
-    #p0 = [mdn, 0.0, 0.0]
-
-    print 
-    print 'Initial parameter values:  ', p0
-
-    #print fp43(p0,dmjd_array,airmass_array,pwv_array)
-    #print residuals43(p0,dmjd_array,airmass_array,pwv_array,dmag_array)
-
-    # Perform fit
-
-    p,cov,infodict,mesg,ier = leastsq(residuals43, p0, args=(dmjd_array, airmass_array, pwv_array, dmag_array), maxfev=10000, full_output=1)
-
-    if ( ier>=1 and ier <=4):
-        print "Converged"
-    else:
-        print "Not converged"
-        print mesg
-
-
-    # Calculate some descriptors of the fit 
-    # (similar to the output from gnuplot 2d fits)
-
-    chisq=sum(infodict['fvec']*infodict['fvec'])
-    dof=len(dmag_array)-len(p)
-    rms=math.sqrt(chisq/dof)
-    
-    print "Converged with chi squared ",chisq
-    print "degrees of freedom, dof ", dof
-    print "RMS of residuals (i.e. sqrt(chisq/dof)) ", rms
-    print "Reduced chisq (i.e. variance of residuals) ", chisq/dof
-    print
-
-
-    # uncertainties are calculated as per gnuplot, "fixing" the result
-    # for non unit values of the reduced chisq.
-    # values at min match gnuplot
-    print "Fitted parameters at minimum, with 68% C.I.:"
-    for i,pmin in enumerate(p):
-        print "%-10s %13g +/- %13g   (%5f percent)" % (pname[i],pmin,math.sqrt(cov[i,i])*math.sqrt(chisq/dof),100.*math.sqrt(cov[i,i])*math.sqrt(chisq/dof)/abs(pmin))
-    print
-
-
-    print "Correlation matrix:"
-    # correlation matrix close to gnuplot
-    print "               ",
-    for i in range(len(pname)): print "%-10s" % (pname[i],),
-    print
-    for i in range(len(p)):
-        print "%-10s" % pname[i],
-        for j in range(i+1):
-	    print "%10f" % (cov[i,j]/math.sqrt(cov[i,i]*cov[j,j]),),
-        #endfor
-        print
-    #endfor
-
-    print
-    print
-    print
-    
-    return p, rms
 
 #--------------------------------------------------------------------------
 # Parametric function:  
